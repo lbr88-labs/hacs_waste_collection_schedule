@@ -1,8 +1,13 @@
 import calendar as _stdlib_calendar  # noqa: F401
+import json
 import os
 import sys
 from collections import defaultdict
 from datetime import date
+from io import BytesIO
+
+import pytest
+from pdfminer.high_level import extract_text
 
 sys.path.insert(
     0,
@@ -283,3 +288,390 @@ def test_calendar_button_keeps_extra_query_params():
     ]
     assert following["year"] == "2027"
     assert following["pnr"] == "0"
+
+
+FIXTURE_DIR = os.path.join(os.path.dirname(__file__), "fixtures")
+with open(
+    os.path.join(FIXTURE_DIR, "affaldonline_calendar_cases.json"),
+    encoding="utf-8",
+) as calendar_cases_file:
+    CALENDAR_CASES = json.load(calendar_cases_file)
+
+# Concrete dates and waste types recorded from each public sample calendar.
+# Holbæk stays on tests/fixtures/affaldonline_holbaek_2026.pdf and
+# test_holbaek_calendar_returns_dates_beyond_next_emptying.
+CALENDAR_ANCHORS = {
+    "aeroe": {
+        "dates": 33,
+        "next_emptying": (date(2026, 10, 12),),
+        "later": date(2026, 12, 21),
+        "types": {
+            "Glas",
+            "Madaffald",
+            "Metal",
+            "Miljøkasse",
+            "Papir/Pap",
+            "Plast/Drikkekarton",
+            "Restaffald",
+            "Tekstiler",
+        },
+        "days": {
+            date(2026, 1, 5): {
+                "Glas",
+                "Madaffald",
+                "Miljøkasse",
+                "Papir/Pap",
+                "Restaffald",
+                "Tekstiler",
+            },
+            date(2026, 7, 6): {
+                "Madaffald",
+                "Metal",
+                "Plast/Drikkekarton",
+                "Restaffald",
+            },
+            date(2026, 10, 12): {
+                "Glas",
+                "Madaffald",
+                "Miljøkasse",
+                "Papir/Pap",
+                "Restaffald",
+                "Tekstiler",
+            },
+            date(2026, 12, 21): {
+                "Madaffald",
+                "Metal",
+                "Plast/Drikkekarton",
+                "Restaffald",
+            },
+        },
+    },
+    "assens": {
+        "dates": 26,
+        "next_emptying": (date(2026, 10, 13),),
+        "later": date(2026, 12, 21),
+        "types": {"Restaffald/Madaffald"},
+        "days": {
+            date(2026, 1, 6): {"Restaffald/Madaffald"},
+            date(2026, 7, 7): {"Restaffald/Madaffald"},
+            date(2026, 10, 13): {"Restaffald/Madaffald"},
+            date(2026, 12, 21): {"Restaffald/Madaffald"},
+        },
+    },
+    "favrskov": {
+        "dates": 87,
+        "next_emptying": (date(2026, 10, 5), date(2026, 10, 8)),
+        "later": date(2026, 12, 28),
+        "types": {
+            "Glas/metal",
+            "Madaffald",
+            "Papir/pap og tekstiler",
+            "Plast/mad- og drikkekartoner",
+            "Restaffald",
+        },
+        "days": {
+            date(2026, 1, 3): {"Papir/pap og tekstiler"},
+            date(2026, 6, 29): {"Madaffald", "Restaffald"},
+            date(2026, 10, 5): {"Madaffald", "Restaffald"},
+            date(2026, 10, 8): {
+                "Glas/metal",
+                "Papir/pap og tekstiler",
+                "Plast/mad- og drikkekartoner",
+            },
+            date(2026, 12, 28): {"Madaffald", "Restaffald"},
+        },
+    },
+    "fanoe": {
+        "dates": 30,
+        "next_emptying": (),
+        "later": None,
+        "types": {"Bioaffald", "Restaffald"},
+        "days": {
+            date(2026, 1, 12): {"Bioaffald", "Restaffald"},
+            date(2026, 7, 20): {"Bioaffald"},
+            date(2026, 12, 28): {"Bioaffald", "Restaffald"},
+        },
+    },
+    "ffv": {
+        "dates": 28,
+        "next_emptying": (date(2026, 10, 16),),
+        "later": date(2026, 12, 26),
+        "types": {
+            "Papir/småt pap og glas/metal",
+            "Plast/fødevarekarton",
+            "Rest-/madaffald",
+            "Røde kasser og tekstiler",
+        },
+        "days": {
+            date(2026, 1, 9): {"Papir/småt pap og glas/metal", "Rest-/madaffald"},
+            date(2026, 7, 10): {"Plast/fødevarekarton", "Rest-/madaffald"},
+            date(2026, 10, 16): {"Papir/småt pap og glas/metal", "Rest-/madaffald"},
+            date(2026, 12, 26): {"Plast/fødevarekarton", "Rest-/madaffald"},
+        },
+    },
+    "fredericia": {
+        "dates": 53,
+        "next_emptying": (),
+        "later": None,
+        "types": {"Madaffald", "Restaffald"},
+        "days": {
+            date(2026, 1, 3): {"Madaffald", "Restaffald"},
+            date(2026, 7, 2): {"Madaffald", "Restaffald"},
+            date(2026, 12, 31): {"Madaffald", "Restaffald"},
+        },
+    },
+    "langeland": {
+        "dates": 26,
+        "next_emptying": (date(2026, 10, 5),),
+        "later": date(2026, 12, 28),
+        "types": {
+            "Bioaffald",
+            "Miljøkasse",
+            "Pap/papir og glas/metal",
+            "Plast/Drikkekarton",
+            "Restaffald",
+            "Tekstilaffald",
+        },
+        "days": {
+            date(2026, 1, 12): {
+                "Bioaffald",
+                "Plast/Drikkekarton",
+                "Restaffald",
+                "Tekstilaffald",
+            },
+            date(2026, 7, 13): {
+                "Bioaffald",
+                "Miljøkasse",
+                "Pap/papir og glas/metal",
+                "Restaffald",
+            },
+            date(2026, 10, 5): {
+                "Bioaffald",
+                "Miljøkasse",
+                "Pap/papir og glas/metal",
+                "Restaffald",
+            },
+            date(2026, 12, 28): {
+                "Bioaffald",
+                "Miljøkasse",
+                "Pap/papir og glas/metal",
+                "Restaffald",
+            },
+        },
+    },
+    "middelfart": {
+        "dates": 45,
+        "next_emptying": (date(2026, 10, 5),),
+        "later": date(2026, 12, 30),
+        "types": {
+            "Glas/Metal",
+            "Papir/Pap og Plast/Mad- og drikkekartoner",
+            "Restaffald/Madaffald",
+        },
+        "days": {
+            date(2026, 1, 14): {"Restaffald/Madaffald"},
+            date(2026, 7, 6): {"Papir/Pap og Plast/Mad- og drikkekartoner"},
+            date(2026, 10, 5): {"Glas/Metal"},
+            date(2026, 12, 30): {"Restaffald/Madaffald"},
+        },
+    },
+    "nyborg": {
+        "dates": 67,
+        "next_emptying": (),
+        "later": None,
+        "types": {
+            "Haveaffald",
+            "Papir/Pap/Plast/Mad-drikkekarton",
+            "Restaffald",
+        },
+        "days": {
+            date(2026, 1, 6): {
+                "Haveaffald",
+                "Papir/Pap/Plast/Mad-drikkekarton",
+                "Restaffald",
+            },
+            date(2026, 7, 7): {"Haveaffald", "Restaffald"},
+            date(2027, 7, 13): {"Haveaffald", "Restaffald"},
+            date(2027, 12, 27): {"Haveaffald", "Restaffald"},
+        },
+    },
+    "silkeborg": {
+        "dates": 44,
+        "next_emptying": (),
+        "later": None,
+        "types": {"Mad-/Rest", "Plast/MDK/Glas/Metal/Papir/Pap"},
+        "days": {
+            date(2026, 1, 2): {"Plast/MDK/Glas/Metal/Papir/Pap"},
+            date(2026, 7, 8): {"Mad-/Rest"},
+            date(2026, 12, 27): {"Plast/MDK/Glas/Metal/Papir/Pap"},
+        },
+    },
+    "soroe": {
+        "dates": 55,
+        "next_emptying": (),
+        "later": None,
+        "types": {
+            "Glas/metal",
+            "Haveaffald",
+            "Plast/mad- og drikkekarton og pap/papir",
+            "Rest-/madaffald",
+            "Storskrald",
+        },
+        "days": {
+            date(2026, 1, 8): {"Plast/mad- og drikkekarton og pap/papir"},
+            date(2026, 7, 3): {"Haveaffald"},
+            date(2026, 12, 31): {"Plast/mad- og drikkekarton og pap/papir"},
+        },
+    },
+    "viborg": {
+        "dates": 69,
+        "next_emptying": (date(2026, 10, 6),),
+        "later": date(2026, 12, 28),
+        "types": {"Glas/Metal", "Mad", "Papir/Pap", "Plast/MDK", "Rest"},
+        "days": {
+            date(2026, 1, 6): {"Mad", "Rest"},
+            date(2026, 7, 7): {"Glas/Metal", "Mad", "Plast/MDK", "Rest"},
+            date(2026, 10, 6): {"Mad", "Rest"},
+            date(2026, 12, 28): {"Mad", "Rest"},
+        },
+    },
+}
+
+# These sample addresses publish a calendar link, but the PDF has no collection
+# rows and the next-emptying line has no date. The source must keep that
+# fallback instead of inventing dates from the month headings.
+NO_COLLECTION_DATES = {
+    "rebild": "Tømningskalender",
+    "vejle": "Der kunne ikke findes nogle tømmedatoer",
+}
+
+
+def _pdf_path(municipality, year):
+    return os.path.join(FIXTURE_DIR, f"affaldonline_{municipality}_{year}.pdf")
+
+
+def _fetch_recorded_case(monkeypatch, municipality):
+    case = CALENDAR_CASES[municipality]
+    pdfs = {}
+    for year in case["pdf_years"]:
+        with open(_pdf_path(municipality, year), "rb") as handle:
+            pdfs[year] = handle.read()
+    downloaded = []
+
+    def mock_post(url, data=None, **kwargs):
+        assert (
+            url == f"https://www.affaldonline.dk/kalender/{municipality}/showInfo.php"
+        )
+        assert data == {
+            "values": affaldonline_dk.AFFALDONLINE_MUNICIPALITIES[municipality][
+                "values"
+            ]
+        }
+        return MockResponse(text=case["show_info"])
+
+    def mock_get(url, params=None, timeout=None, **kwargs):
+        assert url == (
+            f"https://www.affaldonline.dk/kalender/{municipality}/showToemCal.php"
+        )
+        downloaded.append(params)
+        year = str(params.get("year"))
+        if year in pdfs:
+            assert pdfs[year].startswith(b"%PDF")
+            return MockResponse(content=pdfs[year])
+        return MockResponse(text="not a pdf", content=b"not a pdf")
+
+    monkeypatch.setattr(affaldonline_dk.requests, "post", mock_post)
+    monkeypatch.setattr(affaldonline_dk.requests, "get", mock_get)
+
+    source = affaldonline_dk.Source(
+        municipality=municipality,
+        values=affaldonline_dk.AFFALDONLINE_MUNICIPALITIES[municipality]["values"],
+    )
+    return source.fetch(), downloaded, pdfs
+
+
+def test_every_municipality_has_an_offline_calendar_case():
+    recorded = set(CALENDAR_CASES)
+    assert "holbaek" not in recorded
+    assert recorded | {"holbaek"} == set(affaldonline_dk.AFFALDONLINE_MUNICIPALITIES)
+    assert set(CALENDAR_ANCHORS) | set(NO_COLLECTION_DATES) == recorded
+    assert os.path.isfile(os.path.join(FIXTURE_DIR, "affaldonline_holbaek_2026.pdf"))
+    blob = json.dumps(CALENDAR_CASES)
+    assert "Nyvej" not in blob
+    assert "Tølløse" not in blob
+
+
+@pytest.mark.parametrize("municipality", sorted(CALENDAR_ANCHORS))
+def test_recorded_calendar_pdf_matches_concrete_dates(monkeypatch, municipality):
+    spec = CALENDAR_ANCHORS[municipality]
+    case = CALENDAR_CASES[municipality]
+    entries, downloaded, pdfs = _fetch_recorded_case(monkeypatch, municipality)
+
+    by_date = defaultdict(set)
+    for entry in entries:
+        by_date[entry.date].add(entry.type)
+        assert affaldonline_dk._DATE_LINE_RE.match(entry.type) is None
+        assert affaldonline_dk._is_legend_label(entry.type)
+
+    assert len(by_date) > 1
+    assert len(by_date) == spec["dates"]
+    assert {entry_type for types in by_date.values() for entry_type in types} == spec[
+        "types"
+    ]
+    for day, waste_types in spec["days"].items():
+        assert by_date[day] == waste_types
+
+    soup = affaldonline_dk.BeautifulSoup(case["show_info"], "html.parser")
+    next_emptying = affaldonline_dk._next_emptying_dates(soup)
+    assert next_emptying == set(spec["next_emptying"])
+    assert next_emptying <= set(by_date)
+    if spec["later"] is not None:
+        assert spec["later"] in by_date
+        assert spec["later"] > max(next_emptying)
+
+    assert [(entry.date.isoformat(), entry.type) for entry in entries] == [
+        tuple(item) for item in case["collections"]
+    ]
+    assert [params["year"] for params in downloaded] == ["2026", "2027"]
+    buttons = affaldonline_dk._calendar_buttons(soup)
+    following = affaldonline_dk._following_year_button(buttons)
+    assert downloaded == [*buttons, following]
+
+    for year, pdf_bytes in pdfs.items():
+        parsed, unmatched = affaldonline_dk._parse_calendar_pdf(
+            pdf_bytes, fallback_year=int(year)
+        )
+        assert unmatched == 0
+        assert len({entry.date for entry in parsed}) > 1
+        assert all(affaldonline_dk._is_legend_label(entry.type) for entry in parsed)
+
+
+@pytest.mark.parametrize("municipality", sorted(NO_COLLECTION_DATES))
+def test_sample_without_collection_dates_uses_next_emptying_line(
+    monkeypatch, municipality
+):
+    case = CALENDAR_CASES[municipality]
+    entries, downloaded, pdfs = _fetch_recorded_case(monkeypatch, municipality)
+
+    assert entries == []
+    assert case["collections"] == []
+    assert [params["year"] for params in downloaded] == ["2026"]
+
+    soup = affaldonline_dk.BeautifulSoup(case["show_info"], "html.parser")
+    assert affaldonline_dk._calendar_buttons(soup)
+    assert affaldonline_dk._next_emptying_dates(soup) == set()
+    assert downloaded == affaldonline_dk._calendar_buttons(soup)
+
+    source = affaldonline_dk.Source(
+        municipality=municipality,
+        values=affaldonline_dk.AFFALDONLINE_MUNICIPALITIES[municipality]["values"],
+    )
+    assert source._parse_default(soup) == []
+
+    pdf_bytes = pdfs["2026"]
+    parsed, unmatched = affaldonline_dk._parse_calendar_pdf(
+        pdf_bytes, fallback_year=2026
+    )
+    assert parsed == []
+    assert unmatched == 0
+    assert NO_COLLECTION_DATES[municipality] in extract_text(BytesIO(pdf_bytes))
