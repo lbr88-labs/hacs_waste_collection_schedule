@@ -4,6 +4,7 @@ import os
 import sys
 from collections import defaultdict
 from datetime import date
+from io import BytesIO
 
 import pytest
 from pdfminer.high_level import extract_text
@@ -628,8 +629,8 @@ def test_recorded_calendar_pdf_matches_concrete_dates(monkeypatch, municipality)
         assert spec["later"] in by_date
         assert spec["later"] > max(next_emptying)
 
-    assert [(entry.date.isoformat(), entry.type) for entry in entries] == case[
-        "collections"
+    assert [(entry.date.isoformat(), entry.type) for entry in entries] == [
+        tuple(item) for item in case["collections"]
     ]
     assert [params["year"] for params in downloaded] == ["2026", "2027"]
     buttons = affaldonline_dk._calendar_buttons(soup)
@@ -673,4 +674,4 @@ def test_sample_without_collection_dates_uses_next_emptying_line(
     )
     assert parsed == []
     assert unmatched == 0
-    assert NO_COLLECTION_DATES[municipality] in extract_text(pdf_bytes)
+    assert NO_COLLECTION_DATES[municipality] in extract_text(BytesIO(pdf_bytes))
