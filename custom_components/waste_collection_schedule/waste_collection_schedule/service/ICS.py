@@ -1,7 +1,7 @@
 import datetime
 import logging
 import re
-from typing import Any, List, NamedTuple, Optional, Tuple
+from typing import Any, NamedTuple
 
 import jinja2
 from icalevents import icalevents
@@ -12,11 +12,28 @@ _LOGGER = logging.getLogger(__name__)
 class IcsEvent(NamedTuple):
     date: datetime.date
     title: str
-    location: Optional[str] = None
-    description: Optional[str] = None
+    location: str | None = None
+    description: str | None = None
 
 
-def _event_location_description(e: Any) -> Tuple[Optional[str], Optional[str]]:
+# Some generators append a second time component to their UTC timestamp
+# properties, e.g. "CREATED:20260101T000000ZT000000Z" (seen on the RESO /
+# abfallkalender.services feeds). Current icalendar versions refuse to parse
+# such a value and icalevents raises as soon as the property is accessed.
+_DUPLICATED_TIME_SUFFIX = re.compile(
+    r"(?mi)^((?:CREATED|LAST-MODIFIED|DTSTAMP):\d{8}T\d{6}Z)T\d{6}Z(?=\r?$)"
+)
+
+
+def _drop_duplicated_time_suffix(ics_data: str) -> str:
+    """Remove a duplicated time component from UTC timestamp properties.
+
+    Well-formed feeds are left untouched.
+    """
+    return _DUPLICATED_TIME_SUFFIX.sub(r"\1", ics_data)
+
+
+def _event_location_description(e: Any) -> tuple[str | None, str | None]:
     raw_loc = getattr(e, "location", None)
     if isinstance(raw_loc, str):
         loc = raw_loc.strip() or None
@@ -30,12 +47,25 @@ def _event_location_description(e: Any) -> Tuple[Optional[str], Optional[str]]:
     return loc, desc
 
 
+def _event_start_date(e: Any) -> datetime.date | None:
+    """Extract the calendar date from an event parsed with strict=True.
+
+    Keep the occurrence's wall-clock date. Converting to the original DTSTART
+    tzinfo can shift recurring Windows-TZID events across midnight when the
+    recurrence timezone and the embedded VTIMEZONE have different DST rules.
+    """
+    start = getattr(e, "start", None)
+    if isinstance(start, datetime.datetime):
+        return start.date()
+    return start if isinstance(start, datetime.date) else None
+
+
 class ICS:
     def __init__(
         self,
-        offset: Optional[int] = None,
-        regex: Optional[str] = None,
-        split_at: Optional[str] = None,
+        offset: int | None = None,
+        regex: str | None = None,
+        split_at: str | None = None,
         title_template: str = "{{date.summary}}",
     ):
         self._offset = offset
@@ -50,7 +80,7 @@ class ICS:
 
         self._title_template = title_template
 
-    def convert(self, ics_data: str) -> List[Tuple[datetime.date, str]]:
+    def convert(self, ics_data: str) -> list[tuple[datetime.date, str]]:
         # calculate start- and end-date for recurring events
         start_date = datetime.datetime.now(datetime.timezone.utc).replace(
             hour=0, minute=0, second=0, microsecond=0
@@ -84,9 +114,16 @@ class ICS:
             ics_data,
         )
 
+        ics_data = _drop_duplicated_time_suffix(ics_data)
+
         # parse ics data
-        events: List[Any] = icalevents.events(
-            start=start_date, end=end_date, string_content=ics_data.encode()
+        events: list[Any] = icalevents.events(
+            start=start_date,
+            end=end_date,
+            string_content=ics_data.encode(),
+            # Preserve each event's calendar date/time instead of normalising
+            # all events to a calendar-wide timezone (UTC by default).
+            strict=True,
         )
 
         # Inherit summary for recurrence exceptions that lack one.
@@ -102,16 +139,11 @@ class ICS:
                 if e.uid in uid_summaries:
                     e.summary = uid_summaries[e.uid]
 
-        entries: List[Tuple[datetime.date, str]] = []
+        entries: list[tuple[datetime.date, str]] = []
 
         for e in events:
             # calculate date
-            dtstart: Optional[datetime.date] = None
-
-            if isinstance(e.start, datetime.datetime):
-                dtstart = e.start.date()
-            elif isinstance(e.start, datetime.date):
-                dtstart = e.start
+            dtstart: datetime.date | None = _event_start_date(e)
 
             # Only continue if a start date can be found in the entry
             if dtstart is not None:
@@ -137,7 +169,7 @@ class ICS:
 
         return entries
 
-    def convert_events(self, ics_data: str) -> List[IcsEvent]:
+    def convert_events(self, ics_data: str) -> list[IcsEvent]:
         # calculate start- and end-date for recurring events
         start_date = datetime.datetime.now(datetime.timezone.utc).replace(
             hour=0, minute=0, second=0, microsecond=0
@@ -167,9 +199,16 @@ class ICS:
             ics_data,
         )
 
+        ics_data = _drop_duplicated_time_suffix(ics_data)
+
         # parse ics data
-        events: List[Any] = icalevents.events(
-            start=start_date, end=end_date, string_content=ics_data.encode()
+        events: list[Any] = icalevents.events(
+            start=start_date,
+            end=end_date,
+            string_content=ics_data.encode(),
+            # Preserve each event's calendar date/time instead of normalising
+            # all events to a calendar-wide timezone (UTC by default).
+            strict=True,
         )
 
         # Inherit summary for recurrence exceptions that lack one.
@@ -185,16 +224,11 @@ class ICS:
                 if e.uid in uid_summaries:
                     e.summary = uid_summaries[e.uid]
 
-        entries: List[IcsEvent] = []
+        entries: list[IcsEvent] = []
 
         for e in events:
             # calculate date
-            dtstart: Optional[datetime.date] = None
-
-            if isinstance(e.start, datetime.datetime):
-                dtstart = e.start.date()
-            elif isinstance(e.start, datetime.date):
-                dtstart = e.start
+            dtstart: datetime.date | None = _event_start_date(e)
 
             # Only continue if a start date can be found in the entry
             if dtstart is not None:

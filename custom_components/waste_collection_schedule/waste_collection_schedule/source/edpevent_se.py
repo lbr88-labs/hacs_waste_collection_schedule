@@ -114,6 +114,10 @@ TEST_CASES = {
         "street_address": "Fogdevägen 13, Saltsjö-Duvnäs",
         "service_provider": "nvoa",
     },
+    "Danderyd - Banérvägen 6": {
+        "street_address": "Banérvägen 6",
+        "service_provider": "danderyd",
+    },
 }
 
 COUNTRY = "se"
@@ -128,6 +132,8 @@ ICON_MAP = {
     "Matavfall": Icons.BIO_KITCHEN,
     "Slam": Icons.GENERAL_WASTE,
     "Trädgårdsavfall": Icons.GARDEN,
+    "Glas/Glas/Metal": Icons.RECYCLING,
+    "Papper/Plast": Icons.RECYCLING,
 }
 
 # This can be used to rename the waste types to something more user friendly
@@ -242,6 +248,11 @@ SERVICE_PROVIDERS = {
         "url": "https://www.nacka.se/nackavattenavfall/avfall/sophamtning/tomningsdag/",
         "api_url": "https://futureweb.nvoa.se/EDP/FutureWebBasic/SimpleWastePickup",
     },
+    "danderyd": {
+        "title": "Danderyds kommun",
+        "url": "https://www.danderyd.se",
+        "api_url": "https://future.danderyd.se/Danderyd/EDPFutureweb/SimpleWastePickup",
+    },
 }
 
 EXTRA_INFO = [
@@ -331,14 +342,32 @@ class Source:
         for item in data["RhServices"]:
             waste_type = ""
             next_pickup = item["NextWastePickup"]
+
+            # When no explicit pickup date is provided (e.g. for sludge/slam),
+            # fall back to the week number given in the frequency, e.g. "Vecka 27".
+            if not next_pickup and "v" in item["WastePickupFrequency"].lower():
+                next_pickup = item["WastePickupFrequency"]
             try:
-                if "v" in next_pickup:
+                if "v" in next_pickup.lower():
                     date_parts = next_pickup.split()
-                    month = MONTH_MAP[date_parts[1]]
-                    date_joined = "-".join([date_parts[0], str(month), date_parts[2]])
-                    next_pickup_date = datetime.strptime(
-                        date_joined, "v%W-%m-%Y"
-                    ).date()
+                    # "Vecka 27": derive a date from the ISO week number.
+                    if date_parts[0].lower() == "vecka":
+                        current_year = datetime.now().year
+                        next_pickup_date = datetime.strptime(
+                            f"{current_year} {date_parts[1]} 1", "%Y %W %w"
+                        ).date()
+                    # "v32 Aug 2024": derive a date from week, month and year.
+                    elif date_parts[1] in MONTH_MAP:
+                        month = MONTH_MAP[date_parts[1]]
+                        date_joined = "-".join(
+                            [date_parts[0], str(month), date_parts[2]]
+                        )
+                        next_pickup_date = datetime.strptime(
+                            date_joined, "v%W-%m-%Y"
+                        ).date()
+                    else:
+                        _LOGGER.warning("Failed to parse pickup date: %s", next_pickup)
+                        continue
                 elif not next_pickup:
                     continue
                 else:

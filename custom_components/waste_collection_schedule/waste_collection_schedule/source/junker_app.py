@@ -327,6 +327,9 @@ SERVICE_PROVIDERS = {
     "San Cipriano Po",
     "Stradella",
     "Torre de' Passeri",
+    "Scalea",
+    "San Giovanni Teatino",
+    "Lu e Cuccaro Monferrato",
 }
 
 
@@ -354,6 +357,11 @@ TEST_CASES = {
         "municipality": "Torre de' Passeri",
         "area": "Utenze domestiche",
     },
+    "Scalea": {"municipality": "Scalea"},
+    "San Giovanni Teatino, Zona A": {
+        "municipality": "San Giovanni Teatino",
+        "area": "Zona A",
+    },
 }
 
 
@@ -367,8 +375,8 @@ class Source(Junker):
         except AreaRequired as e:
             raise SourceArgumentRequiredWithSuggestions(
                 "area", "required for this municipality", [a[0] for a in e.areas]
-            )
+            ) from e
         except AreaNotFound as e:
             raise SourceArgumentNotFoundWithSuggestions(
                 "area", self._area, [a[0] for a in e.areas]
-            )
+            ) from e

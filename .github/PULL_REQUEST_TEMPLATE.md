@@ -2,6 +2,8 @@
 
 <!-- What does this PR do? -->
 
+> **New source?** Development focus is currently on the upcoming v3.0.0 release — please target this PR at the `release/3.0.0` branch instead of `master`. Bug fixes for the current stable release still go against `master`.
+
 ## Type of change
 
 - [ ] New source
@@ -12,6 +14,7 @@
 ## Checklist
 
 - [ ] `python -m pytest tests/test_source_components.py -q` passes
+- [ ] New sources use the `BaseSource` pipeline (new legacy-style sources are not accepted; fixes to existing legacy sources are fine)
 - [ ] `ruff check --fix` and `ruff format` run on changed source files
 - [ ] No generated files in diff (README.md, info.md, sources.json, translations/*.json — CI regenerates these post-merge)
 - [ ] `doc/source/<name>.md` created for new sources

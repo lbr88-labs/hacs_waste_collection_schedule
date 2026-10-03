@@ -1,9 +1,8 @@
-from datetime import datetime
-
-import requests
-from bs4 import BeautifulSoup
 from waste_collection_schedule import Collection, Icons  # type: ignore[attr-defined]
-from waste_collection_schedule.exceptions import SourceArgumentNotFound
+from waste_collection_schedule.service.OpenCities import (
+    OpenCitiesClient,
+    OpenCitiesConfig,
+)
 
 TITLE = "Ballina Shire Council"
 DESCRIPTION = "Source for Ballina Shire Council, NSW, Australia."
@@ -15,21 +14,19 @@ HOW_TO_GET_ARGUMENTS_DESCRIPTION = {
     )
 }
 TEST_CASES = {
-    "1 Grant St, Ballina NSW 2478": {"address": "1 Grant St, Ballina NSW 2478"}
+    "1/49 Grant Street BALLINA": {"address": "1/49 Grant Street BALLINA"},
+    "2/7 Hartigan St CUMBALUM": {"address": "2/7 Hartigan St CUMBALUM"},
 }
 
-SEARCH_URL = "https://www.ballina.nsw.gov.au/api/v1/myarea/searchfuzzy"
-COLLECTION_URL = "https://www.ballina.nsw.gov.au/ocapi/Public/myarea/wasteservices"
 PAGE_LINK = "/$8a878053-5e29-431d-896b-8c79ce08799f$/Residents/Waste-and-Recycling/Bin-Collection-Day"
 
+# Ballina sits behind Akamai, which fingerprints the TLS handshake as well as
+# the headers. Announcing Chrome in the User-Agent over a plain `requests`
+# handshake is the worst of both worlds and is served a 403 "Access Denied"
+# page; curl_cffi's Chrome impersonation makes the two agree and passes.
 HEADERS = {
     "accept": "application/json, text/javascript, */*; q=0.01",
     "referer": URL,
-    "user-agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/146.0.0.0 Safari/537.36"
-    ),
     "x-requested-with": "XMLHttpRequest",
 }
 
@@ -41,83 +38,27 @@ ICON_MAP = {
     "garden organics": Icons.GARDEN,
 }
 
+_CONFIG = OpenCitiesConfig(
+    domain="https://www.ballina.nsw.gov.au",
+    search_fuzzy=True,
+    # Ballina's fuzzy search ranks poorly: "1 Grant St, Ballina NSW 2478"
+    # comes back with "2/7 Hartigan St CUMBALUM" first and the Grant Street
+    # properties behind it. Capping at one result therefore guaranteed the
+    # wrong property, so take the whole list and disambiguate it here.
+    page_link=PAGE_LINK,
+    headers=HEADERS,
+    use_curl_cffi=True,
+    search_response_format="json_then_xml",
+    strict_address_matching=True,
+    strict_single_result=True,
+    icon_keywords=ICON_MAP,
+)
+
 
 class Source:
     def __init__(self, address: str):
         self._address = " ".join(address.split())
-        self._session = requests.Session()
-        self._session.headers.update(HEADERS)
+        self._client = OpenCitiesClient(_CONFIG)
 
     def fetch(self) -> list[Collection]:
-        geolocation_id = self._get_geolocation_id()
-        response = self._session.get(
-            COLLECTION_URL,
-            params={
-                "geolocationid": geolocation_id,
-                "ocsvclang": "en-AU",
-                "pageLink": PAGE_LINK,
-            },
-            timeout=30,
-        )
-        response.raise_for_status()
-
-        html_content = response.json().get("responseContent", "")
-        if not html_content:
-            raise SourceArgumentNotFound("address", self._address)
-
-        return self._parse_entries(html_content)
-
-    def _get_geolocation_id(self) -> str:
-        response = self._session.get(
-            SEARCH_URL,
-            params={"keywords": self._address, "maxresults": "1"},
-            timeout=30,
-        )
-        response.raise_for_status()
-
-        items = response.json().get("Items", [])
-        if not items:
-            raise SourceArgumentNotFound("address", self._address)
-
-        geolocation_id = items[0].get("Id")
-        if not geolocation_id:
-            raise SourceArgumentNotFound("address", self._address)
-
-        return geolocation_id
-
-    def _parse_entries(self, html: str) -> list[Collection]:
-        soup = BeautifulSoup(html, "html.parser")
-        entries: list[Collection] = []
-
-        for result in soup.select(".waste-services-result"):
-            title = result.find("h3")
-            next_service = result.select_one(".next-service")
-            if title is None or next_service is None:
-                continue
-
-            waste_type = title.get_text(" ", strip=True)
-            date_text = next_service.get_text(" ", strip=True)
-            try:
-                collection_date = datetime.strptime(date_text, "%a %d/%m/%Y").date()
-            except ValueError:
-                continue
-
-            entries.append(
-                Collection(
-                    date=collection_date,
-                    t=waste_type,
-                    icon=self._guess_icon(waste_type),
-                )
-            )
-
-        if not entries:
-            raise SourceArgumentNotFound("address", self._address)
-
-        return entries
-
-    def _guess_icon(self, waste_type: str) -> str | None:
-        lower = waste_type.lower()
-        for key, icon in ICON_MAP.items():
-            if key in lower:
-                return icon
-        return None
+        return self._client.fetch(address=self._address)

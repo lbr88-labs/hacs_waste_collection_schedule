@@ -16,7 +16,7 @@ sys.path.insert(
     ),
 )
 
-from waste_collection_schedule.source import affaldonline_dk  # noqa: E402
+from waste_collection_schedule.source import affaldonline_dk
 
 FIXTURE_PDF = os.path.join(
     os.path.dirname(__file__),

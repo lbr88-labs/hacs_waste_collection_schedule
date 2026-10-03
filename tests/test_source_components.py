@@ -1,16 +1,18 @@
 import os
 import sys
+from collections.abc import Iterable
 from functools import cache
 from importlib import import_module
 from inspect import Parameter, signature
 from types import GeneratorType, ModuleType
-from typing import Any, Iterable, Type
+from typing import Any
 from unittest.mock import patch
 
+import pytest
 import yaml
 
-sys.path.append(os.path.join(os.path.dirname(__file__), ".."))  # isort:skip # noqa: E402
-from update_docu_links import (  # isort:skip # noqa: E402
+sys.path.append(os.path.join(os.path.dirname(__file__), ".."))  # isort:skip
+from update_docu_links import (  # isort:skip
     BLACK_LIST,
     COUNTRYCODES,
     LANGUAGES,
@@ -21,7 +23,7 @@ SOURCES_TO_EXCLUDE = ["__init__.py", "example.py"]
 SOURCES_EXCLUDE_TEST_CASE_CHECK = ["multiple"]
 
 
-EXTRA_INFO_TYPES: dict[str, Type] = {
+EXTRA_INFO_TYPES: dict[str, type] = {
     "title": str,
     "url": str,
     "country": str,
@@ -140,6 +142,42 @@ def test_enfield_address_match_uses_whole_house_number() -> None:
     assert not module.Source._matches_address(normalized_input, embedded_candidate)
 
 
+def test_esch_lu_requests_identity_encoding() -> None:
+    module = _get_module("esch_lu")
+    calls: list[tuple[str, dict[str, Any]]] = []
+
+    class _Response:
+        content = (
+            b'<table id="garbage-table"><tr><td></td><td>Organique</td>'
+            b"<td>mardi, 28 juillet 2026</td></tr></table>"
+        )
+
+        @staticmethod
+        def raise_for_status() -> None:
+            return None
+
+    class _Session:
+        def get(self, url: str, **kwargs: Any) -> _Response:
+            calls.append((url, kwargs))
+            return _Response()
+
+    with patch.object(module, "get_legacy_session", return_value=_Session()):
+        entries = module.Source(zone="A").fetch()
+
+    assert [(entry.date.isoformat(), entry.type) for entry in entries] == [
+        ("2026-07-28", "Organique")
+    ]
+    assert calls == [
+        (
+            "https://administration.esch.lu/dechets/",
+            {
+                "params": {"street": 0, "tour": "1"},
+                "headers": {"Accept-Encoding": "identity"},
+            },
+        )
+    ]
+
+
 def _param_translation_check(
     source: str,
     translations: Any,
@@ -223,7 +261,9 @@ def _test_source_has_necessary_parameters_extra_info(
         try:
             extra_info = extra_info()
         except Exception as e:
-            assert False, f"EXTRA_INFO() function in source {source} failed with {e}"
+            raise AssertionError(
+                f"EXTRA_INFO() function in source {source} failed with {e}"
+            ) from e
 
         # check if is iterable (list, tupüle, set)
         assert isinstance(extra_info, (list, tuple, set, GeneratorType)), (
@@ -422,10 +462,8 @@ SOURCES_ALLOWED_RAW_ICONS: set[str] = {
     "insert_it_de",  # nested {region: {waste_type: {icon, name}}} structure
     "landkreis_helmstedt_de",  # computed keys
     "potsdam_de",  # integer keys
-    "sepan_remondis_pl",  # dynamic ICON_MAP construction
     "wermelskirchen_de",  # dynamic ICON_MAP construction
     "woollahra_nsw_gov_au",  # dynamic ICON_MAP construction
-    "zys_harmonogram_pl",  # dynamic ICON_MAP construction
 }
 
 
@@ -495,14 +533,600 @@ def test_uk_cloud9_client_falls_back_to_secondary_domain(monkeypatch) -> None:
     ]
 
 
+def test_koma_pl_resolves_house_number_and_parses_schedule() -> None:
+    module = _get_module("koma_pl")
+
+    posesje = [
+        {"numer_posesji": "ND00050", "numer_domu": "4/1", "ulica": "Kanałowa"},
+        {"numer_posesji": "1941", "numer_domu": "5", "ulica": "Kanałowa"},
+    ]
+    schedule = {
+        "rok": "2026",
+        "odbior": [
+            {"data": "2026-01-07", "typ": "Bio"},
+            {"data": "2026-01-15", "typ": "Zmieszane"},
+            {"data": "bad-date", "typ": "Papier"},
+        ],
+    }
+
+    class _Response:
+        def __init__(self, payload):
+            self._payload = payload
+
+        def raise_for_status(self) -> None:
+            return None
+
+        def json(self):
+            return self._payload
+
+    requested = []
+
+    class _Session:
+        def get(self, url, params=None, timeout=None):
+            requested.append((url, params))
+            if "apiharmonogram" in url:
+                return _Response(schedule)
+            return _Response(posesje)
+
+    with patch.object(module.requests, "Session", lambda **kwargs: _Session()):
+        entries = module.Source(
+            gmina="Nowy Dwór Gdański",
+            miejscowosc="Nowy Dwór Gdański",
+            ulica="Kanałowa",
+            numer_domu="5",
+        ).fetch()
+
+    # House number "5" must resolve to property id 1941 in the schedule request.
+    assert any(
+        params and params.get("value") == "Nowy Dwór Gdański/1941"
+        for _, params in requested
+    )
+    # Valid dates parsed, invalid date skipped.
+    assert [(entry.date.isoformat(), entry.type) for entry in entries] == [
+        ("2026-01-07", "Bio"),
+        ("2026-01-15", "Zmieszane"),
+    ]
+
+
 def test_uk_cloud9_client_requires_api_domains() -> None:
     module = import_module("waste_collection_schedule.service.uk_cloud9_apps")
 
     try:
         module.Cloud9Client("rugby", api_domains=())
-        assert False, "Expected ValueError when no API domains are configured"
+        raise AssertionError("Expected ValueError when no API domains are configured")
     except ValueError as err:
         assert "At least one API domain" in str(err)
+
+
+class _OpenCitiesResponse:
+    def __init__(self, *, json_data=None, text="", json_error=False):
+        self._json_data = json_data
+        self.text = text
+        self._json_error = json_error
+
+    def raise_for_status(self) -> None:
+        return None
+
+    def json(self):
+        if self._json_error:
+            raise ValueError("invalid json")
+        return self._json_data
+
+
+class _OpenCitiesSession:
+    def __init__(self, responder) -> None:
+        self.headers: dict[str, str] = {}
+        self.calls: list[tuple[str, dict | None]] = []
+        self._responder = responder
+
+    def get(self, url, params=None, timeout=None):
+        self.calls.append((url, params))
+        return self._responder(url, params)
+
+
+def _opencities_module():
+    return import_module("waste_collection_schedule.service.OpenCities")
+
+
+def test_opencities_client_resolves_single_address_result() -> None:
+    module = _opencities_module()
+    config = module.OpenCitiesConfig(domain="https://example.invalid")
+    client = module.OpenCitiesClient(config)
+
+    def responder(url, params):
+        assert "/api/v1/myarea/search" in url
+        return _OpenCitiesResponse(
+            json_data={"Items": [{"Id": "abc-123", "AddressSingleLine": "1 Main St"}]}
+        )
+
+    client._session = _OpenCitiesSession(responder)
+
+    assert client.resolve_geolocation_id("1 Main St") == "abc-123"
+
+
+def test_opencities_client_raises_ambiguous_with_suggestions_on_multiple_matches() -> (
+    None
+):
+    module = _opencities_module()
+    config = module.OpenCitiesConfig(
+        domain="https://example.invalid", strict_address_matching=True
+    )
+    client = module.OpenCitiesClient(config)
+    client._session = _OpenCitiesSession(
+        lambda url, params: _OpenCitiesResponse(
+            json_data={
+                "Items": [
+                    {"Id": "a", "AddressSingleLine": "1 Main St, Northtown"},
+                    {"Id": "b", "AddressSingleLine": "1 Main St, Southtown"},
+                ]
+            }
+        )
+    )
+
+    try:
+        client.resolve_geolocation_id("1 Main St")
+        raise AssertionError("Expected SourceArgAmbiguousWithSuggestions")
+    except module.SourceArgAmbiguousWithSuggestions as err:
+        assert list(err.suggestions) == [
+            "1 Main St, Northtown",
+            "1 Main St, Southtown",
+        ]
+
+
+def test_opencities_client_selects_exact_match_among_multiple_results() -> None:
+    module = _opencities_module()
+    config = module.OpenCitiesConfig(
+        domain="https://example.invalid", strict_address_matching=True
+    )
+    client = module.OpenCitiesClient(config)
+    client._session = _OpenCitiesSession(
+        lambda url, params: _OpenCitiesResponse(
+            json_data={
+                "Items": [
+                    {"Id": "a", "AddressSingleLine": "5 Other St, Southtown"},
+                    {"Id": "b", "AddressSingleLine": "  1 main st, northtown  "},
+                ]
+            }
+        )
+    )
+
+    assert client.resolve_geolocation_id("1 main st, northtown") == "b"
+
+
+def test_opencities_client_trusts_top_search_result_by_default() -> None:
+    module = _opencities_module()
+    config = module.OpenCitiesConfig(domain="https://example.invalid")
+    client = module.OpenCitiesClient(config)
+    client._session = _OpenCitiesSession(
+        lambda url, params: _OpenCitiesResponse(
+            json_data={
+                "Items": [
+                    {"Id": "a", "AddressSingleLine": "1 Main St, Northtown"},
+                    {"Id": "b", "AddressSingleLine": "1 Main St, Southtown"},
+                ]
+            }
+        )
+    )
+
+    # With strict_address_matching left at its default (False), the
+    # highest-ranked result is used even though it doesn't textually match
+    # the query -- avoids turning normal fuzzy-search hits (e.g. missing a
+    # state abbreviation) into a hard "ambiguous" failure.
+    assert client.resolve_geolocation_id("1 Main St, Somewhere Else") == "a"
+
+
+def test_opencities_client_raises_not_found_on_empty_search() -> None:
+    module = _opencities_module()
+    config = module.OpenCitiesConfig(domain="https://example.invalid")
+    client = module.OpenCitiesClient(config)
+    client._session = _OpenCitiesSession(
+        lambda url, params: _OpenCitiesResponse(json_data={"Items": []})
+    )
+
+    try:
+        client.resolve_geolocation_id("nowhere")
+        raise AssertionError("Expected SourceArgumentNotFound")
+    except module.SourceArgumentNotFound:
+        pass
+
+
+def test_opencities_client_uses_searchfuzzy_and_maxresults_when_configured() -> None:
+    module = _opencities_module()
+    config = module.OpenCitiesConfig(
+        domain="https://example.invalid", search_fuzzy=True, max_results=1
+    )
+    client = module.OpenCitiesClient(config)
+    session = _OpenCitiesSession(
+        lambda url, params: _OpenCitiesResponse(json_data={"Items": [{"Id": "a"}]})
+    )
+    client._session = session
+
+    client.resolve_geolocation_id("1 Main St")
+
+    url, params = session.calls[0]
+    assert url == "https://example.invalid/api/v1/myarea/searchfuzzy"
+    assert params == {"keywords": "1 Main St", "maxresults": 1}
+
+
+def test_opencities_client_includes_page_link_param_when_configured() -> None:
+    module = _opencities_module()
+    config = module.OpenCitiesConfig(
+        domain="https://example.invalid", page_link="/some/page"
+    )
+    client = module.OpenCitiesClient(config)
+    session = _OpenCitiesSession(
+        lambda url, params: _OpenCitiesResponse(
+            json_data={"success": True, "responseContent": "<p>no services</p>"}
+        )
+    )
+    client._session = session
+
+    client.fetch_by_geolocation_id("abc")
+
+    _, params = session.calls[0]
+    assert params is not None
+    assert params["pageLink"] == "/some/page"
+
+
+def test_opencities_client_get_waste_services_html_returns_raw_fragment() -> None:
+    module = _opencities_module()
+    config = module.OpenCitiesConfig(domain="https://example.invalid")
+    client = module.OpenCitiesClient(config)
+    html = (
+        "<article><h3>General Waste</h3>"
+        '<div class="note">Collected fortnightly</div>'
+        '<div class="next-service">Mon 01/02/2027</div></article>'
+    )
+    client._session = _OpenCitiesSession(
+        lambda url, params: _OpenCitiesResponse(
+            json_data={"success": True, "responseContent": html}
+        )
+    )
+
+    assert client.get_waste_services_html("abc") == html
+
+
+def test_opencities_client_parses_wasteservices_html_into_collections() -> None:
+    module = _opencities_module()
+    config = module.OpenCitiesConfig(domain="https://example.invalid")
+    client = module.OpenCitiesClient(config)
+    html = (
+        "<article><h3>General Waste</h3>"
+        '<div class="next-service">Mon 01/02/2027</div></article>'
+        "<article><h3>Recycling</h3>"
+        '<div class="next-service">Tue 02/02/2027</div></article>'
+    )
+    client._session = _OpenCitiesSession(
+        lambda url, params: _OpenCitiesResponse(
+            json_data={"success": True, "responseContent": html}
+        )
+    )
+
+    entries = client.fetch_by_geolocation_id("abc")
+
+    assert [(e.date.isoformat(), e.type) for e in entries] == [
+        ("2027-02-01", "General Waste"),
+        ("2027-02-02", "Recycling"),
+    ]
+
+
+def test_opencities_client_does_not_double_count_nested_article_in_result_div() -> None:
+    module = _opencities_module()
+    config = module.OpenCitiesConfig(domain="https://example.invalid")
+    client = module.OpenCitiesClient(config)
+    html = (
+        '<div class="waste-services-result"><article><h3>General Waste</h3>'
+        '<div class="next-service">Mon 01/02/2027</div></article></div>'
+    )
+    client._session = _OpenCitiesSession(
+        lambda url, params: _OpenCitiesResponse(
+            json_data={"success": True, "responseContent": html}
+        )
+    )
+
+    entries = client.fetch_by_geolocation_id("abc")
+
+    assert len(entries) == 1
+
+
+def test_opencities_client_resolves_icon_via_keywords() -> None:
+    from waste_collection_schedule import Icons
+
+    module = _opencities_module()
+    config = module.OpenCitiesConfig(
+        domain="https://example.invalid",
+        icon_keywords={
+            "general waste": Icons.GENERAL_WASTE,
+            "recycling": Icons.RECYCLING,
+        },
+    )
+    client = module.OpenCitiesClient(config)
+    html = (
+        "<article><h3>General Waste</h3>"
+        '<div class="next-service">Mon 01/02/2027</div></article>'
+    )
+    client._session = _OpenCitiesSession(
+        lambda url, params: _OpenCitiesResponse(
+            json_data={"success": True, "responseContent": html}
+        )
+    )
+
+    entries = client.fetch_by_geolocation_id("abc")
+
+    assert entries[0].icon == Icons.GENERAL_WASTE
+
+
+def test_opencities_client_skips_entries_missing_next_service_date() -> None:
+    module = _opencities_module()
+    config = module.OpenCitiesConfig(domain="https://example.invalid")
+    client = module.OpenCitiesClient(config)
+    html = (
+        '<article><h3>General Waste</h3><div class="next-service"></div></article>'
+        "<article><h3>Recycling</h3>"
+        '<div class="next-service">Tue 02/02/2027</div></article>'
+    )
+    client._session = _OpenCitiesSession(
+        lambda url, params: _OpenCitiesResponse(
+            json_data={"success": True, "responseContent": html}
+        )
+    )
+
+    entries = client.fetch_by_geolocation_id("abc")
+
+    assert [e.type for e in entries] == ["Recycling"]
+
+
+def test_opencities_client_filters_by_date_precise_class_when_configured() -> None:
+    module = _opencities_module()
+    config = module.OpenCitiesConfig(
+        domain="https://example.invalid", require_date_precise=True
+    )
+    client = module.OpenCitiesClient(config)
+    html = (
+        '<div class="waste-services-result date-precise"><h3>General Waste</h3>'
+        '<div class="next-service">Mon 01/02/2027</div></div>'
+        '<div class="waste-services-result"><h3>Recycling</h3>'
+        '<div class="next-service">Every fortnight</div></div>'
+    )
+    client._session = _OpenCitiesSession(
+        lambda url, params: _OpenCitiesResponse(
+            json_data={"success": True, "responseContent": html}
+        )
+    )
+
+    entries = client.fetch_by_geolocation_id("abc")
+
+    assert [e.type for e in entries] == ["General Waste"]
+
+
+def test_opencities_client_drops_excluded_types() -> None:
+    module = _opencities_module()
+    config = module.OpenCitiesConfig(
+        domain="https://example.invalid", exclude_types=("Burning off",)
+    )
+    client = module.OpenCitiesClient(config)
+    html = (
+        "<article><h3>Burning off</h3>"
+        '<div class="next-service">Mon 01/02/2027</div></article>'
+        "<article><h3>Rubbish Collection</h3>"
+        '<div class="next-service">Tue 02/02/2027</div></article>'
+    )
+    client._session = _OpenCitiesSession(
+        lambda url, params: _OpenCitiesResponse(
+            json_data={"success": True, "responseContent": html}
+        )
+    )
+
+    entries = client.fetch_by_geolocation_id("abc")
+
+    assert [e.type for e in entries] == ["Rubbish Collection"]
+
+
+def test_opencities_client_drops_excluded_type_prefixes() -> None:
+    module = _opencities_module()
+    config = module.OpenCitiesConfig(
+        domain="https://example.invalid", exclude_type_prefixes=("Calendar",)
+    )
+    client = module.OpenCitiesClient(config)
+    html = (
+        "<article><h3>Calendar - GlassZone 8</h3>"
+        '<div class="next-service">Mon 01/02/2027</div></article>'
+        "<article><h3>General Waste</h3>"
+        '<div class="next-service">Tue 02/02/2027</div></article>'
+    )
+    client._session = _OpenCitiesSession(
+        lambda url, params: _OpenCitiesResponse(
+            json_data={"success": True, "responseContent": html}
+        )
+    )
+
+    entries = client.fetch_by_geolocation_id("abc")
+
+    assert [e.type for e in entries] == ["General Waste"]
+
+
+def test_opencities_client_resolves_every_weekday_recurring_text() -> None:
+    module = _opencities_module()
+    config = module.OpenCitiesConfig(domain="https://example.invalid")
+    client = module.OpenCitiesClient(config)
+    html = (
+        "<article><h3>General Waste</h3>"
+        '<div class="next-service">Every Monday</div></article>'
+    )
+    client._session = _OpenCitiesSession(
+        lambda url, params: _OpenCitiesResponse(
+            json_data={"success": True, "responseContent": html}
+        )
+    )
+
+    entries = client.fetch_by_geolocation_id("abc")
+
+    assert len(entries) == 1
+    assert entries[0].date.weekday() == 0  # Monday
+    from datetime import date as _date
+
+    assert entries[0].date >= _date.today()
+
+
+def test_opencities_client_retries_once_on_stale_cached_geolocation_id() -> None:
+    module = _opencities_module()
+    config = module.OpenCitiesConfig(domain="https://example.invalid")
+    client = module.OpenCitiesClient(config)
+
+    search_calls = {"count": 0}
+    html = (
+        "<article><h3>General Waste</h3>"
+        '<div class="next-service">Mon 01/02/2027</div></article>'
+    )
+
+    def responder(url, params):
+        if "myarea/search" in url:
+            search_calls["count"] += 1
+            return _OpenCitiesResponse(json_data={"Items": [{"Id": "fresh-id"}]})
+        # wasteservices: fail for the stale cached id, succeed for the fresh one
+        if params.get("geolocationid") == "stale-id":
+            return _OpenCitiesResponse(json_data={"success": False})
+        return _OpenCitiesResponse(json_data={"success": True, "responseContent": html})
+
+    client._session = _OpenCitiesSession(responder)
+    client._geolocation_id = "stale-id"
+
+    entries = client.fetch(address="1 Main St")
+
+    assert search_calls["count"] == 1
+    assert [e.type for e in entries] == ["General Waste"]
+    assert client._geolocation_id == "fresh-id"
+
+
+def test_opencities_client_bypasses_search_when_geolocation_id_given_directly() -> None:
+    module = _opencities_module()
+    config = module.OpenCitiesConfig(domain="https://example.invalid")
+    client = module.OpenCitiesClient(config)
+    session = _OpenCitiesSession(
+        lambda url, params: _OpenCitiesResponse(
+            json_data={"success": True, "responseContent": "<p>no services</p>"}
+        )
+    )
+    client._session = session
+
+    client.fetch(geolocation_id="abc")
+
+    assert all("myarea/search" not in url for url, _ in session.calls)
+
+
+def test_opencities_client_fires_warm_up_url_once_before_wasteservices_when_configured() -> (
+    None
+):
+    module = _opencities_module()
+    config = module.OpenCitiesConfig(
+        domain="https://example.invalid",
+        warm_up_url="https://example.invalid/warm",
+        warm_up_before="wasteservices",
+    )
+    client = module.OpenCitiesClient(config)
+    session = _OpenCitiesSession(
+        lambda url, params: _OpenCitiesResponse(
+            json_data={"success": True, "responseContent": "<p>no services</p>"}
+        )
+    )
+    client._session = session
+
+    client.fetch_by_geolocation_id("abc")
+    client.fetch_by_geolocation_id("abc")
+
+    warm_up_calls = [url for url, _ in session.calls if url.endswith("/warm")]
+    assert len(warm_up_calls) == 1
+
+
+def test_opencities_client_fires_warm_up_url_before_search_by_default() -> None:
+    module = _opencities_module()
+    config = module.OpenCitiesConfig(
+        domain="https://example.invalid", warm_up_url="https://example.invalid/warm"
+    )
+    client = module.OpenCitiesClient(config)
+    session = _OpenCitiesSession(
+        lambda url, params: _OpenCitiesResponse(json_data={"Items": [{"Id": "abc"}]})
+    )
+    client._session = session
+
+    client.resolve_geolocation_id("1 Main St")
+
+    assert [url for url, _ in session.calls[:1]] == ["https://example.invalid/warm"]
+
+
+def test_opencities_client_does_not_warm_up_before_wasteservices_by_default() -> None:
+    module = _opencities_module()
+    config = module.OpenCitiesConfig(
+        domain="https://example.invalid", warm_up_url="https://example.invalid/warm"
+    )
+    client = module.OpenCitiesClient(config)
+    session = _OpenCitiesSession(
+        lambda url, params: _OpenCitiesResponse(
+            json_data={"success": True, "responseContent": "<p>no services</p>"}
+        )
+    )
+    client._session = session
+
+    client.fetch_by_geolocation_id("abc")
+
+    assert all("/warm" not in url for url, _ in session.calls)
+
+
+def test_opencities_client_falls_back_from_json_to_xml_search_response() -> None:
+    module = _opencities_module()
+    config = module.OpenCitiesConfig(
+        domain="https://example.invalid", search_response_format="json_then_xml"
+    )
+    client = module.OpenCitiesClient(config)
+    xml = (
+        "<Results><PhysicalAddressSearchResult>"
+        "<Id>xml-id</Id><AddressSingleLine>1 Main St</AddressSingleLine>"
+        "</PhysicalAddressSearchResult></Results>"
+    )
+    client._session = _OpenCitiesSession(
+        lambda url, params: _OpenCitiesResponse(json_error=True, text=xml)
+    )
+
+    assert client.resolve_geolocation_id("1 Main St") == "xml-id"
+
+
+def test_opencities_client_parses_xml_only_search_response() -> None:
+    module = _opencities_module()
+    config = module.OpenCitiesConfig(
+        domain="https://example.invalid",
+        search_response_format="xml",
+        strict_address_matching=False,
+    )
+    client = module.OpenCitiesClient(config)
+    xml = (
+        "<Results><PhysicalAddressSearchResult>"
+        "<Id>xml-id</Id></PhysicalAddressSearchResult></Results>"
+    )
+    client._session = _OpenCitiesSession(
+        lambda url, params: _OpenCitiesResponse(text=xml)
+    )
+
+    assert client.resolve_geolocation_id("1 Main St") == "xml-id"
+
+
+def test_opencities_client_uses_curl_cffi_session_when_configured(monkeypatch) -> None:
+    module = _opencities_module()
+    created_with = {}
+
+    class _FakeCurlSession:
+        def __init__(self, impersonate=None):
+            created_with["impersonate"] = impersonate
+            self.headers: dict[str, str] = {}
+
+    monkeypatch.setattr(module.curl_cffi_requests, "Session", _FakeCurlSession)
+
+    config = module.OpenCitiesConfig(
+        domain="https://example.invalid", use_curl_cffi=True
+    )
+    client = module.OpenCitiesClient(config)
+
+    assert isinstance(client._session, _FakeCurlSession)
+    assert created_with["impersonate"] == "chrome"
 
 
 def test_mzv_rotenburg_route_filter_without_location() -> None:
@@ -549,3 +1173,286 @@ END:VCALENDAR
         ("2026-01-04", "Papier"),
         ("2026-01-05", "Restabfall"),
     ]
+
+
+def test_wm_com_parses_service_date_delay() -> None:
+    module = _get_module("wm_com")
+
+    result = module._parse_holiday_message(
+        "Due to the Thanksgiving holiday, your service on 11/24/2026 will be on "
+        "a 1 day delay.",
+    )
+
+    assert result == {
+        module.datetime.datetime(2026, 11, 24): module.datetime.datetime(2026, 11, 25)
+    }
+
+    two_digit_year = module._parse_holiday_message(
+        "Due to the Thanksgiving holiday, your service on 11/24/26 will be on "
+        "a 1 day delay.",
+    )
+
+    assert two_digit_year == {
+        module.datetime.datetime(2026, 11, 24): module.datetime.datetime(2026, 11, 25)
+    }
+
+
+def test_wm_com_keeps_no_year_holiday_on_today() -> None:
+    from datetime import date as _date
+
+    module = _get_module("wm_com")
+
+    result = module._parse_holiday_message(
+        "Labor Day is on Monday, September 7th. Weekday collections will "
+        "experience a delay of one day.",
+        today=_date(2026, 9, 7),
+    )
+
+    assert result == {
+        module.datetime.datetime(2026, 9, day): module.datetime.datetime(
+            2026, 9, day + 1
+        )
+        for day in range(7, 12)
+    }
+
+
+def test_wm_com_keeps_recent_no_year_holiday_in_current_year() -> None:
+    from datetime import date as _date
+
+    module = _get_module("wm_com")
+
+    result = module._parse_holiday_message(
+        "Labor Day is on Monday, September 7th. Weekday collections will "
+        "experience a delay of one day.",
+        today=_date(2026, 9, 8),
+    )
+
+    assert result == {
+        module.datetime.datetime(2026, 9, day): module.datetime.datetime(
+            2026, 9, day + 1
+        )
+        for day in range(7, 12)
+    }
+
+
+def test_wm_com_rolls_stale_no_year_holiday_into_next_year() -> None:
+    from datetime import date as _date
+
+    module = _get_module("wm_com")
+
+    # Once the delayed collection week has fully passed, a year-less notice
+    # refers to next year's occurrence rather than the one just gone.
+    result = module._parse_holiday_message(
+        "Labor Day is on Monday, September 7th. Weekday collections will "
+        "experience a delay of one day.",
+        today=_date(2026, 9, 20),
+    )
+
+    assert result == {
+        module.datetime.datetime(2027, 9, day): module.datetime.datetime(
+            2027, 9, day + 1
+        )
+        for day in range(7, 11)
+    }
+
+
+def test_wm_com_parses_weekday_collection_delays() -> None:
+    module = _get_module("wm_com")
+
+    labor_day = module._parse_holiday_message(
+        "Residential: Labor Day is on Monday, September 7th, 2026, and we will be "
+        "closed. Weekday collections will experience a delay of one day. "
+        "Commercial: Labor Day is on Monday, September 7th, 2026, and we will be "
+        "closed. Weekday collections may experience a delay of up to one day.",
+    )
+    assert labor_day == {
+        module.datetime.datetime(2026, 9, day): module.datetime.datetime(
+            2026, 9, day + 1
+        )
+        for day in range(7, 12)
+    }
+
+    thanksgiving = module._parse_holiday_message(
+        "Thanksgiving is on Thursday, November 26th, 2026. Weekday collections "
+        "will experience a delay of one day.",
+    )
+    assert thanksgiving == {
+        module.datetime.datetime(2026, 11, 26): module.datetime.datetime(2026, 11, 27),
+        module.datetime.datetime(2026, 11, 27): module.datetime.datetime(2026, 11, 28),
+    }
+
+
+def test_wm_com_anchors_weekend_holiday_to_observed_weekday() -> None:
+    module = _get_module("wm_com")
+
+    # 2026-11-01 is a Sunday, observed on Monday the 2nd: the whole of that
+    # week's weekday collections shift.
+    sunday = module._parse_holiday_message(
+        "The holiday is on Sunday, November 1st, 2026. Weekday collections "
+        "will experience a delay of one day.",
+    )
+    assert sunday == {
+        module.datetime.datetime(2026, 11, day): module.datetime.datetime(
+            2026, 11, day + 1
+        )
+        for day in range(2, 7)
+    }
+
+    # 2026-11-07 is a Saturday, observed on Friday the 6th: only that Friday
+    # is left in the week, so it is the only collection that shifts.
+    saturday = module._parse_holiday_message(
+        "The holiday is on Saturday, November 7th, 2026. Weekday collections "
+        "will experience a delay of one day.",
+    )
+    assert saturday == {
+        module.datetime.datetime(2026, 11, 6): module.datetime.datetime(2026, 11, 7)
+    }
+
+
+def test_wm_com_parses_delay_length_after_the_word_delay() -> None:
+    module = _get_module("wm_com")
+
+    numeric_after = module._parse_holiday_message(
+        "Due to the holiday, your service on 11/24/2026 will be on a delay of 2 days.",
+    )
+    assert numeric_after == {
+        module.datetime.datetime(2026, 11, 24): module.datetime.datetime(2026, 11, 26)
+    }
+
+    spelled_out = module._parse_holiday_message(
+        "Due to the holiday, your service on 11/24/2026 will experience a "
+        "delay of two days.",
+    )
+    assert spelled_out == numeric_after
+
+    up_to = module._parse_holiday_message(
+        "Due to the holiday, your service on 11/24/2026 may be on a delay of "
+        "up to 3 days.",
+    )
+    assert up_to == {
+        module.datetime.datetime(2026, 11, 24): module.datetime.datetime(2026, 11, 27)
+    }
+
+    # The original "<n> day delay" ordering must keep working.
+    numeric_before = module._parse_holiday_message(
+        "Due to the holiday, your service on 11/24/2026 will be on a 2 day delay.",
+    )
+    assert numeric_before == numeric_after
+
+    # A notice with no delay length at all still yields no adjustment.
+    assert (
+        module._parse_holiday_message(
+            "Due to the holiday, your service on 11/24/2026 may be affected.",
+        )
+        == {}
+    )
+
+
+# Zone names as Junker publishes them for CIDIU towns, including the shapes that
+# are not a plain "street + range": dedicated single-number zones, parity-only
+# zones and streets whose name contains "da" or a number.
+_CIDIU_ZONES = [
+    ("VIA CONDOVE da civico 2 a civico 124 e da civico 1 a civico 123", 1),
+    ("CORSO SUSA da 1 a 15", 2),
+    ("CORSO SUSA pari da 2 a 314 dispari da 17 a 315", 3),
+    ("Viale Antonio Gramsci", 4),
+    ("VIA ROMA da civico 1 a civico 99 (tranne civico 51)", 5),
+    ("VIA ROMA da civico 51 a civico 51", 6),
+    ("Viale Bruno Radich", 7),
+    ("Viale Bruno Radich 11", 8),
+    ("Via Ettore Montanaro 17", 9),
+    ("Via Ettore Montanaro 20", 10),
+    ("Via Pietro Micca da civico 1 a civico 32", 11),
+    ("Via Pietro Micca 33", 12),
+    ("Via Torino civici pari", 13),
+    ("Via Torino civici dispari", 14),
+    ("VIA LEONARDO DA VINCI", 15),
+    ("Piazza 66 Martiri", 16),
+]
+
+
+def _cidiu_zone(street, number):
+    module = _get_module("cidiu_it")
+    source = module.Source(street=street, street_number=number, city="x")
+    return {i: n for n, i in _CIDIU_ZONES}[source._find_zone(_CIDIU_ZONES)]
+
+
+def test_cidiu_it_matches_zone_by_range_parity_and_exception() -> None:
+    assert _cidiu_zone("via condove", 2).startswith("VIA CONDOVE")
+    assert _cidiu_zone("CORSO SUSA", 7) == "CORSO SUSA da 1 a 15"
+    assert _cidiu_zone("CORSO SUSA", 124).startswith("CORSO SUSA pari")
+    assert _cidiu_zone("CORSO SUSA", "17").startswith("CORSO SUSA pari")
+    assert _cidiu_zone("VIA ROMA", 50).startswith("VIA ROMA da civico 1")
+    assert _cidiu_zone("VIA ROMA", 51) == "VIA ROMA da civico 51 a civico 51"
+    # Junker spells the street out where the old calendar abbreviated it.
+    assert _cidiu_zone("VIALE GRAMSCI", "18") == "Viale Antonio Gramsci"
+
+
+def test_cidiu_it_prefers_the_most_specific_zone() -> None:
+    assert _cidiu_zone("Viale Bruno Radich", 11) == "Viale Bruno Radich 11"
+    assert _cidiu_zone("Viale Bruno Radich", 5) == "Viale Bruno Radich"
+    assert _cidiu_zone("Via Ettore Montanaro", 17) == "Via Ettore Montanaro 17"
+    assert _cidiu_zone("Via Ettore Montanaro", 20) == "Via Ettore Montanaro 20"
+    assert _cidiu_zone("Via Pietro Micca", 33) == "Via Pietro Micca 33"
+    assert _cidiu_zone("Via Pietro Micca", 5).startswith("Via Pietro Micca da")
+
+
+def test_cidiu_it_handles_parity_only_zones_and_street_names_with_da() -> None:
+    assert _cidiu_zone("Via Torino", 4) == "Via Torino civici pari"
+    assert _cidiu_zone("Via Torino", 5) == "Via Torino civici dispari"
+    assert _cidiu_zone("Via Leonardo da Vinci", 3) == "VIA LEONARDO DA VINCI"
+    assert _cidiu_zone("Piazza 66 Martiri", 1) == "Piazza 66 Martiri"
+
+
+def test_cidiu_it_reports_unmatched_addresses() -> None:
+    from waste_collection_schedule.exceptions import (
+        SourceArgAmbiguousWithSuggestions,
+        SourceArgumentNotFoundWithSuggestions,
+    )
+
+    module = _get_module("cidiu_it")
+    with pytest.raises(SourceArgumentNotFoundWithSuggestions):
+        _cidiu_zone("VIA INESISTENTE", 1)
+    with pytest.raises(SourceArgumentNotFoundWithSuggestions):
+        _cidiu_zone("CORSO SUSA", 400)
+    with pytest.raises(SourceArgAmbiguousWithSuggestions):
+        module.Source(street="VIA VERDI", street_number=7, city="x")._find_zone(
+            [("VIA VERDI da 1 a 10", 1), ("VIA VERDI da 5 a 15", 2)]
+        )
+
+
+def test_cidiu_it_fetch_maps_junker_types_to_the_previous_labels() -> None:
+    module = _get_module("cidiu_it")
+    from datetime import date
+
+    from waste_collection_schedule import Collection, Icons
+    from waste_collection_schedule.service.junker_app import AreaRequired
+
+    calls = []
+
+    class _Junker:
+        def __init__(self, municipality, area=None, use_embed_url=True):
+            calls.append(area)
+            self._area = area
+
+        def fetch(self):
+            if self._area is None:
+                raise AreaRequired(_CIDIU_ZONES)
+            return [
+                Collection(date(2026, 1, 1), "General waste collection"),
+                Collection(date(2026, 1, 2), "Glass/Cans"),
+                Collection(date(2026, 1, 3), "Something new", icon="mdi:x"),
+            ]
+
+    with patch.object(module, "Junker", _Junker):
+        entries = module.Source(
+            street="CORSO SUSA", street_number=124, city="Rivoli"
+        ).fetch()
+
+    assert calls == [None, 3]
+    assert [e.type for e in entries] == [
+        "Indifferenziato",
+        "Vetro e lattine",
+        "Something new",
+    ]
+    assert entries[1].icon == Icons.GLASS

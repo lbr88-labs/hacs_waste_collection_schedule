@@ -5,7 +5,7 @@ import time
 import uuid
 from collections import Counter, OrderedDict
 from datetime import date, datetime
-from urllib.parse import unquote
+from urllib.parse import unquote_plus
 
 import requests
 from bs4 import BeautifulSoup, Tag
@@ -408,7 +408,7 @@ API_BASE = "https://app.abfallplus.de/{}"
 API_ASSISTANT = API_BASE.format("assistent/{}")  # ignore: E501
 USER_AGENT = "Android / {} 8.1.1 (1915081010) / DM=unknown;DT=vbox86p;SN=Google;SV=8.1.0 (27);MF=unknown"
 USER_AGENT_ASSISTANT = "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/114.0.0.0 Safari/537.36 Abfallwecker"
-ABFALLARTEN_H2_SKIP = ["Sondermüll"]
+ABFALLARTEN_H2_SKIP = ["Sondermüll", "Giftmobil"]
 VERIFY_SSL = True
 
 
@@ -439,7 +439,9 @@ def extract_onclicks(
         try:
             to_return.append(json.loads(string))
         except json.decoder.JSONDecodeError:
-            raise Exception(f"Failed to parse '{string}', onclick: '{onclick}'")
+            raise Exception(
+                f"Failed to parse '{string}', onclick: '{onclick}'"
+            ) from None
         if hnr:
             res = re.search(r"\.val\([0-9]+\)", onclick)
             if res:
@@ -574,7 +576,7 @@ class AppAbfallplusDe:
         r.raise_for_status()
         soup = BeautifulSoup(r.text, features="html.parser")
         if not (inputs := soup.find_all("input")):
-            return
+            return None
 
         for input in inputs:
             if input.attrs["name"] == "f_id_bundesland":
@@ -794,7 +796,7 @@ class AppAbfallplusDe:
             self._strasse_search = streets[0]["name"]
         if self._strasse_search is None and len(streets) == 0:
             return
-        elif self._strasse_search is None:
+        if self._strasse_search is None:
             raise SourceArgumentRequiredWithSuggestions(
                 "strasse",
                 "multiple streets found, please specify one",
@@ -835,7 +837,7 @@ class AppAbfallplusDe:
             hnrs.append(
                 {
                     "id": a[0],
-                    "name": unquote(a[0]).split("|")[0],
+                    "name": unquote_plus(a[0]).split("|")[0],
                     "f_id_strasse": a[6] if len(a) > 6 else None,
                 }
             )
@@ -893,17 +895,30 @@ class AppAbfallplusDe:
                 to_skip_element.find_parent("div") if to_skip_element else None
             )
             if div_to_skip:
-                for input in to_skip_element.find_parent("div").find_all(
+                for input in div_to_skip.find_all(
                     "input", {"name": "f_id_abfallart[]"}
                 ):
-                    if compare(input.text, self._region_search, remove_space=True):
+                    # The visible label (e.g. the municipality name for a
+                    # "Sondermüll"/"Giftmobil" per-town toggle list) lives in
+                    # a sibling <ion-item>, not in the <input> itself, which
+                    # has no text content.
+                    label_item = input.find_next_sibling("ion-item")
+                    label_text = (
+                        label_item.get_text(strip=True)
+                        if label_item is not None
+                        else input.text
+                    )
+                    if compare(label_text, self._region_search, remove_space=True):
                         id = input.attrs["id"].split("_")[-1]
-                        self._f_id_abfallart.append(input.attrs["value"])
+                        self._f_id_abfallart.append(id)
                         self._needs_subtitle.append(id)
                         if id.isdigit():
                             self._needs_subtitle.append(str(int(id) - 1))
                         break
-                # remove sondermuell h2 from soup
+                # Remove this heading's whole section from the soup so that
+                # any remaining, non-matching entries (e.g. the Giftmobil
+                # toggle for every other municipality in the Landkreis) are
+                # not swept up by the generic "value == 0" fallback below.
                 div_to_skip.decompose()
 
         for input in soup.find_all("input", {"name": "f_id_abfallart[]"}):

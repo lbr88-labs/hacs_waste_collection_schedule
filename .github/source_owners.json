@@ -13,14 +13,47 @@
     "awista_kommunal_de": [
       "@Zaunei"
     ],
+    "bathurst_nsw_gov_au": [
+      "@Wolfieeewolf"
+    ],
     "baumkirchen_gv_at": [
       "@bbr111"
+    ],
+    "bern_ch": [
+      "@sbaerlocher"
     ],
     "berndorf_gv_at": [
       "@bbr111"
     ],
+    "bochnia_gmina_pl": [
+      "@Sairento-92"
+    ],
     "buermoos_at": [
       "@bbr111"
+    ],
+    "charleston_sc_gov": [
+      "@dmkjr"
+    ],
+    "charlestoncounty_org": [
+      "@dmkjr"
+    ],
+    "clissonsevremaine_fr": [
+      "@JeyMuller"
+    ],
+    "codc_govt_nz": [
+      "@soasmileynz"
+    ],
+    "deponia_hu": [
+      "@tothi"
+    ],
+    "durban_gov_za": [
+      "@robtesch"
+    ],
+    "eastdevon_gov_uk": [
+      "@SimonRice"
+    ],
+    "easthants_gov_uk": [
+      "@alexcroox"
     ],
     "elsbethen_at": [
       "@bbr111"
@@ -28,14 +61,50 @@
     "enns_at": [
       "@bbr111"
     ],
+    "exeter_gov_uk": [
+      "@AtomBrake"
+    ],
     "felixdorf_gv_at": [
       "@bbr111"
+    ],
+    "fermanaghomagh_gov_uk": [
+      "@bbr111"
+    ],
+    "feuerthalen_ch": [
+      "@oh-supra"
+    ],
+    "geilenkirchen_de": [
+      "@bbr111"
+    ],
+    "gmina_trzebnica_pl": [
+      "@Tymon3310"
+    ],
+    "greatershepparton_com_au": [
+      "@RedPandaDoge"
+    ],
+    "haringey_gov_uk": [
+      "@marcjay"
     ],
     "hartbeigraz_at": [
       "@bbr111"
     ],
+    "hedemora_energi_se": [
+      "@crazyboy89"
+    ],
+    "him_as": [
+      "@bbr111"
+    ],
     "imst_at": [
       "@bbr111"
+    ],
+    "ipswich_qld_gov_au": [
+      "@CRZTFR"
+    ],
+    "ismaning_de": [
+      "@Kufi089"
+    ],
+    "jacksonville_fl_us": [
+      "@biggiebytes"
     ],
     "jochberg_gv_at": [
       "@bbr111"
@@ -43,11 +112,35 @@
     "kiedyodpady_pl": [
       "@dominik-korsa"
     ],
+    "kirchlengern_de": [
+      "@bbr111"
+    ],
+    "kopavogur_is": [
+      "@rhubarbgarden"
+    ],
+    "kositwest_sk": [
+      "@mynameisdominik"
+    ],
     "kronstorf_at": [
       "@bbr111"
     ],
+    "kvatg_ch": [
+      "@Smn-hns"
+    ],
+    "mils_tirol_at": [
+      "@bbr111"
+    ],
+    "moretonbay_qld_gov_au": [
+      "@CRZTFR"
+    ],
     "muehlenkreis_de": [
       "@bbr111"
+    ],
+    "municipium_it": [
+      "@fedfus"
+    ],
+    "mywastewatcher_de": [
+      "@ItsMly"
     ],
     "oberndorf_schwanenstadt_at": [
       "@bbr111"
@@ -55,14 +148,38 @@
     "ocarcims_ocfl_net": [
       "@rbusquet"
     ],
+    "partille_se": [
+      "@sadjad1"
+    ],
+    "pernitz_gv_at": [
+      "@bbr111"
+    ],
+    "predmerice_nad_labem_cz": [
+      "@ArzykDev"
+    ],
     "puchbeihallein_gv_at": [
       "@nerdoc"
+    ],
+    "ritl_ca": [
+      "@Jean-PascalComeau"
     ],
     "schlierbach_at": [
       "@bbr111"
     ],
+    "sesaeste_it": [
+      "@AlexSartori"
+    ],
     "sictomvds_com": [
       "@KingKemar"
+    ],
+    "siokom_hu": [
+      "@tothi"
+    ],
+    "smolo_cz": [
+      "@jan-tdy"
+    ],
+    "sperrmuell_erlensee_de": [
+      "@SgtSeppel"
     ],
     "st_margarethen_salzburg_at": [
       "@bbr111"
@@ -70,8 +187,17 @@
     "steyr_at": [
       "@bbr111"
     ],
+    "stirling_gov_uk": [
+      "@nagug"
+    ],
     "stirling_wa_gov_au": [
       "@markvp"
+    ],
+    "suibr_ch": [
+      "@AlpenGlowNW"
+    ],
+    "team_orange_de": [
+      "@ChrisKoh83"
     ],
     "toulouse_metropole_fr": [
       "@fangedhex"
@@ -79,8 +205,17 @@
     "vogeldisposal_com": [
       "@jcarr"
     ],
+    "wastenet_org_nz": [
+      "@etamtlosz"
+    ],
     "westminster_gov_uk": [
       "@parmymansam"
+    ],
+    "wingecarribee_nsw_gov_au": [
+      "@m1ckyb"
+    ],
+    "yarracity_vic_gov_au": [
+      "@yeaaaaaahh"
     ]
   }
 }

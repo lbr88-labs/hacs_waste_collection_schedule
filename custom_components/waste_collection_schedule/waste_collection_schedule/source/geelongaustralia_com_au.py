@@ -3,6 +3,7 @@ import datetime
 import requests
 from bs4 import BeautifulSoup, Tag
 from waste_collection_schedule import Collection, Icons  # type: ignore[attr-defined]
+from waste_collection_schedule.exceptions import SourceArgumentNotFound
 
 TITLE = "City of Greater Geelong"
 DESCRIPTION = "Source City of Greater Geelong rubbish collection"
@@ -65,8 +66,15 @@ class Source:
         r.raise_for_status()
 
         if "We couldn't find a match for" in r.text:
-            raise Exception(
-                f"No collection calendars are available for the selected property. Make sure your address returns entries on the council website ({API_URL})."
+            # The council answered, and its answer is that this address is not
+            # in its register. Raising a bare Exception made that a server
+            # error to every caller; SourceArgumentNotFound names the argument
+            # at fault so it can be reported against the field.
+            raise SourceArgumentNotFound(
+                "address",
+                self._address,
+                "No collection calendars are available for this property. "
+                f"Check the address against the council's own search ({API_URL}).",
             )
 
         soup = BeautifulSoup(r.text, "html.parser")
@@ -79,7 +87,7 @@ class Source:
         next4s = div.find_all("ul")
         entries = []  # List that holds collection schedule
 
-        for bin, next4 in zip(bins, next4s):
+        for bin, next4 in zip(bins, next4s, strict=False):
             t = bin.text.split(" (", 1)[0]
             dates = next4.find_all("li")
             for date in dates:

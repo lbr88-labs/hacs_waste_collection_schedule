@@ -46,6 +46,11 @@ TEST_CASES = {
         "house_number": "397",
         "service": "sliedrecht",
     },
+    "Spaarnelanden": {
+        "postal_code": "2013EA",
+        "house_number": "1",
+        "service": "spaarnelanden",
+    },
     "Tollebeek": {"postal_code": "8309AV", "house_number": "1"},
     "Hvcgroep: Tollebeek": {
         "postal_code": "8309AV",
@@ -79,8 +84,10 @@ SERVICE_MAP = [
         "api_url": "https://afvalkalender.cranendonck.nl",
         "icons": {
             "zak-geel-blik-drank": Icons.RECYCLING,
-            "gft": Icons.ORGANIC,
-            "doos-karton-papier-avond": Icons.PAPER,
+            "appel-gft": Icons.ORGANIC,
+            "doos-karton-papier": Icons.PAPER,
+            "doos-karton-papier-1800": Icons.PAPER,
+            "doos-karton-papier-vr0800-za1330": Icons.PAPER,
             "kliko-grijs-rest": Icons.GENERAL_WASTE,
         },
     },

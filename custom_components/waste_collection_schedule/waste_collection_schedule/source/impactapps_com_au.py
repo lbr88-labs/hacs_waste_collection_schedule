@@ -1,5 +1,5 @@
 from datetime import date, timedelta
-from typing import List, Optional, TypedDict, Union, cast
+from typing import TypedDict, cast
 
 import requests
 from waste_collection_schedule import Collection, Icons  # type: ignore[attr-defined]
@@ -217,7 +217,7 @@ SERVICE_MAP = [  # supported calendars can be found at https://calendars.impacta
     {
         "name": "Brisbane City Council",
         "url": "https://brisbane.waste-info.com.au",
-        "website": "https://www.brisbane.nsw.gov.au",
+        "website": "https://www.brisbane.qld.gov.au",
     },
     {
         "name": "Burwood City Council",
@@ -225,14 +225,14 @@ SERVICE_MAP = [  # supported calendars can be found at https://calendars.impacta
         "website": "https://www.burwood.nsw.gov.au",
     },
     {
-        "name": "Campbeltown City Council",
+        "name": "Campbelltown City Council",
         "url": "https://campbelltown.waste-info.com.au",
-        "website": "https://www.campbelltown.vic.gov.au",
+        "website": "https://www.campbelltown.nsw.gov.au",
     },
     {
         "name": "City of Canada Bay Council",
         "url": "https://canada-bay.waste-info.com.au",
-        "website": "https://www.canadabay.vic.gov.au",
+        "website": "https://www.canadabay.nsw.gov.au",
     },
     {
         "name": "Cowra Council",
@@ -242,7 +242,7 @@ SERVICE_MAP = [  # supported calendars can be found at https://calendars.impacta
     {
         "name": "Cumberland City Council",
         "url": "https://cumberland.waste-info.com.au",
-        "website": "https://www.cumberland.vic.gov.au",
+        "website": "https://www.cumberland.nsw.gov.au",
     },
     {
         "name": "Forbes Shire Council",
@@ -257,7 +257,7 @@ SERVICE_MAP = [  # supported calendars can be found at https://calendars.impacta
     {
         "name": "Lithgow City Council",
         "url": "https://lithgow.waste-info.com.au",
-        "website": "https://www.lithgow.nsw.gov.au",
+        "website": "https://council.lithgow.com/",
     },
     {
         "name": "Livingstone Shire Council",
@@ -282,7 +282,7 @@ SERVICE_MAP = [  # supported calendars can be found at https://calendars.impacta
     {
         "name": "Port Stephens Council",
         "url": "https://port-stephens.waste-info.com.au",
-        "website": "https://www.portstephens.vic.gov.au",
+        "website": "https://www.portstephens.nsw.gov.au",
     },
     {
         "name": "Port Macquarie Hastings Council",
@@ -317,7 +317,7 @@ SERVICE_MAP = [  # supported calendars can be found at https://calendars.impacta
     {
         "name": "Wollongong City Council",
         "url": "https://wollongong.waste-info.com.au",
-        "website": "https://www.wollongong.vic.gov.au",
+        "website": "https://www.wollongong.nsw.gov.au",
     },
     {
         "name": "Gympie Regional Council",
@@ -345,7 +345,7 @@ SERVICE_MAP = [  # supported calendars can be found at https://calendars.impacta
         "website": "https://www.hrcc.vic.gov.au",
     },
     {
-        "name": "Murrindindi Shire Counci",
+        "name": "Murrindindi Shire Council",
         "url": "https://murrindindi.waste-info.com.au",
         "website": "https://www.murrindindi.vic.gov.au",
     },
@@ -357,6 +357,17 @@ SERVICE_MAP = [  # supported calendars can be found at https://calendars.impacta
 ]
 
 SERVICE_MAP_LOOKUP = {council["name"]: council for council in SERVICE_MAP}
+
+# Misspelled SERVICE_MAP names that shipped previously, mapped to the corrected
+# name. EXTRA_INFO() publishes each council's name as its `service` default_param,
+# so the config flow stored the misspelling verbatim in existing config entries.
+# Without this, correcting SERVICE_MAP would drop those users through to the
+# "assume the service is a council name" branch below and build a nonsense host
+# ("https://Murrindindi Shire Counci.waste-info.com.au").
+LEGACY_SERVICE_NAMES = {
+    "Murrindindi Shire Counci": "Murrindindi Shire Council",
+    "Campbeltown City Council": "Campbelltown City Council",
+}
 
 
 def EXTRA_INFO():
@@ -373,7 +384,7 @@ def EXTRA_INFO():
 class LocalityResponse(TypedDict):
     id: int
     name: str
-    postcode: Optional[int]
+    postcode: int | None
     council: str
 
 
@@ -406,13 +417,13 @@ class RecurringEventResponse(TypedDict):
     color: str
     textColor: str
     borderColor: str
-    dow: List[int]
-    daysOfWeek: List[int]
+    dow: list[int]
+    daysOfWeek: list[int]
 
 
 def generate_recurring_dates(
     event: RecurringEventResponse, start_date: date, end_date: date
-) -> List[date]:
+) -> list[date]:
     # Generate a list of dates for the recurring event
     recurring_dates = []
     # Event days of week are indexed with Monday being 1 (1 = Monday, 7 = Sunday)
@@ -432,7 +443,7 @@ class LocationFinder:
         url = f"{self.api_url}/api/v1/localities.json"
         response = session.get(url)
         response.raise_for_status()
-        suburbs: List[LocalityResponse] = response.json()["localities"]
+        suburbs: list[LocalityResponse] = response.json()["localities"]
         suburb_id = next(
             (item["id"] for item in suburbs if item["name"] == suburb), None
         )
@@ -448,7 +459,7 @@ class LocationFinder:
         url = f"{self.api_url}/api/v1/streets.json"
         response = session.get(url, params={"locality": suburb_id})
         response.raise_for_status()
-        streets: List[StreetResponse] = response.json()["streets"]
+        streets: list[StreetResponse] = response.json()["streets"]
         street_id = next(
             (item["id"] for item in streets if item["name"] == street_name), None
         )
@@ -469,7 +480,7 @@ class LocationFinder:
         url = f"{self.api_url}/api/v1/properties.json"
         response = session.get(url, params={"street": street_id})
         response.raise_for_status()
-        properties: List[PropertyResponse] = response.json()["properties"]
+        properties: list[PropertyResponse] = response.json()["properties"]
         property_id = next(
             (
                 item["id"]
@@ -495,11 +506,12 @@ class Source:
     def __init__(
         self,
         service: str,
-        property_id: Optional[int] = None,
-        suburb: Optional[str] = None,
-        street_name: Optional[str] = None,
-        street_number: Optional[str] = None,
+        property_id: int | None = None,
+        suburb: str | None = None,
+        street_name: str | None = None,
+        street_number: str | None = None,
     ):
+        service = LEGACY_SERVICE_NAMES.get(service, service)
         if service in SERVICE_MAP_LOOKUP:
             api_url = SERVICE_MAP_LOOKUP[service]["url"]
         else:
@@ -533,7 +545,7 @@ class Source:
             self.street_number = street_number
             self.location_finder = LocationFinder(self.api_url)
 
-    def fetch(self) -> List[Collection]:
+    def fetch(self) -> list[Collection]:
         start_date = date.today()
         end_date = start_date + timedelta(365)
 
@@ -554,18 +566,16 @@ class Source:
         response = session.get(
             url, params={"start": start_date.isoformat(), "end": end_date.isoformat()}
         )
-        events: List[Union[RecurringEventResponse, OneOffEventResponse]] = (
-            response.json()
-        )
+        events: list[RecurringEventResponse | OneOffEventResponse] = response.json()
 
-        collections: List[Collection] = []
+        collections: list[Collection] = []
         for event in events:
             # determine waste type for icon
             try:
                 event_type = event["event_type"]
             except KeyError:  # some entries do not contain a waste collection event, so move to next item in list
                 continue
-            icon = ICON_MAP.get(event_type, None)
+            icon = ICON_MAP.get(event_type)
 
             # determine waste type for title (some entries contain additional info)
             try:
