@@ -57,6 +57,42 @@ TEST_CASES = {
         "key": "1c230a689579b6d3ddb9ceb5a56c6072",
         "idHouseNumber": 31972,
     },
+    "Landkreis Reutlingen, Wannweil, Bahnhofstraße 5": {
+        "key": "15f69fab91c4cae50d9dbb5bcfd383f0",
+        "idHouseNumber": 58444,
+    },
+    "Entsorgungsbetriebe Essen": {
+        "key": "51be67f3758f1fb57b420efe065c0663",
+        "idHouseNumber": 74629,
+    },
+    "KELL Kommunalentsorgung Landkreis Leipzig GmbH, Großpösna": {
+        "key": "0d7a92192ba3ae914c028ac37d73e222",
+        "idHouseNumber": 1257,
+    },
+    "Wirtschaftsbetriebe Duisburg (WBD), Buchholz, Altenbrucher Damm 8": {
+        "key": "80acad6c77fe9342ebafad29a8c58bf6",
+        "idHouseNumber": 72827,
+    },
+    "Landkreis Göttingen, Scheden": {
+        "key": "4b5702d771c82b611c386ebbc7629026",
+        "idHouseNumber": 641,
+    },
+    "Landkreis Böblingen, Böblingen, Dagersheim": {
+        "key": "76bdaac8568082d77e7a90cb41129f9b",
+        "idHouseNumber": 1057,
+    },
+    "ASG Nordsachsen, Delitzsch-Beerendorf": {
+        "key": "2085afd95285e645e15ee9623d0c5172",
+        "idHouseNumber": 360435,
+    },
+    "Schwarzwald-Baar-Kreis, Königsfeld": {
+        "key": "30628292bdd8b43db86a48f7e0d85f85",
+        "idHouseNumber": 16437,
+    },
+    "ASO Abfall-Service Osterholz, Osterholz-Scharmbeck, Ahrensfelder Damm 4": {
+        "key": "8b016df0116d1d5094fa339bebea0c65",
+        "idHouseNumber": 6644,
+    },
 }
 
 
@@ -64,7 +100,21 @@ class Source:
     def __init__(self, key, idHouseNumber, wasteTypes=None):
         self._key = key
         self._id_house_number = str(idHouseNumber)
-        self._waste_types = [str(w) for w in wasteTypes] if wasteTypes else None
+        if isinstance(wasteTypes, str):
+            self._waste_types = [
+                x.strip() for x in wasteTypes.split(",") if x.strip()
+            ] or None
+        elif wasteTypes:
+            self._waste_types = [str(w) for w in wasteTypes]
+        else:
+            self._waste_types = None
+        # Some providers (e.g. KELL GmbH) reject GraphQL requests that don't
+        # carry an Origin/Referer header matching their own website. Look up
+        # the provider's URL (if known) so we can send it proactively.
+        self._origin = next(
+            (s["url"].rstrip("/") for s in SERVICE_MAP if s["service_id"] == key),
+            None,
+        )
 
     def fetch(self):
         r = requests.get(INIT_URL, params={"key": self._key}, headers=HEADERS)
@@ -93,6 +143,9 @@ class Source:
             "Content-Type": "application/json",
             "x-abfallplus-api-key": api_key,
         }
+        if self._origin:
+            gql_headers["Origin"] = self._origin
+            gql_headers["Referer"] = f"{self._origin}/"
 
         r = requests.post(
             GQL_URL,

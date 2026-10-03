@@ -20,19 +20,23 @@ TEST_CASES = {
     "Test_001": {"postcode": "BT28 1AG", "house_number": "19A"},
     "Test_002": {"postcode": "BT26 6AB", "house_number": "31"},
     "Test_003": {"postcode": "BT26 6AB", "house_number": 15},
-    "Test_004": {"property_id": "DYYSm8Ls8XxGi3Nq"},
-    "Test_005": {"property_id": "ZJat6DWG1Lp95xp1"},
+    "Test_004": {"property_id": "RTTKBJY77wmTr5wP"},
+    "Test_005": {"property_id": "6opWbT5hi9odCQ2u"},
 }
 
 API_URL = "https://lisburn.isl-fusion.com"
 ICON_MAP = {
     "ResidualBin": Icons.GENERAL_WASTE,
     "RecycleBin": Icons.RECYCLING,
-    "BrownBin": Icons.BIO_KITCHEN,
+    "WheelieBox": Icons.RECYCLING,
+    "BrownBin": Icons.GARDEN,
+    "FoodWaste": Icons.BIO_KITCHEN,
 }
 NICE_NAMES = {
     "ResidualBin": "Refuse",
     "RecycleBin": "Recycling",
+    "WheelieBox": "Wheelie Box",
+    "FoodWaste": "Food Waste",
     "BrownBin": "Garden",
 }
 
@@ -68,7 +72,7 @@ class Source:
             try:
                 address_list = response.json().get("html")
             except Exception:
-                raise SourceArgumentNotFound("postcode", self._postcode)
+                raise SourceArgumentNotFound("postcode", self._postcode) from None
 
             soup = bs4.BeautifulSoup(address_list, features="html.parser")
 
@@ -107,7 +111,7 @@ class Source:
         try:
             next_collections = response.json().get("nextCollections")
         except Exception:
-            raise ValueError("No collection data in response")
+            raise ValueError("No collection data in response") from None
 
         entries = []  # List that holds collection schedule
 
@@ -115,11 +119,12 @@ class Source:
             collection_date = datetime.strptime(collection["date"], "%Y-%m-%d").date()
 
             for bin in collection["collections"].values():
+                bin_type = bin["name"]
                 entries.append(
                     Collection(
                         date=collection_date,
-                        t=NICE_NAMES.get(bin["name"]),
-                        icon=ICON_MAP.get(bin["name"]),
+                        t=NICE_NAMES.get(bin_type, bin_type),
+                        icon=ICON_MAP.get(bin_type),
                     )
                 )
 

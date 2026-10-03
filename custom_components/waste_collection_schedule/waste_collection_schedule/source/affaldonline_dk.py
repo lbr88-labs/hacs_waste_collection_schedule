@@ -5,7 +5,6 @@ import re
 from datetime import date, datetime
 from functools import lru_cache
 from io import BytesIO
-from typing import List
 from urllib.parse import parse_qs
 
 import requests
@@ -135,6 +134,12 @@ AFFALDONLINE_MUNICIPALITIES = {
         "parser": "default",
         "values": "Nørregade|69||||7100|Vejle|16285351|16285351|0",
     },
+    "viborg": {
+        "title": "Revas (Viborg Kommune)",
+        "url": "https://www.revas.dk/",
+        "parser": "default",
+        "values": "Hjultorvet|1||||8800|Viborg|8228245|8739|0",
+    },
 }
 
 EXTRA_INFO = [
@@ -160,14 +165,14 @@ def select_test_cases(municipalities, mode="random_one_from_each_parser"):
             parser_test_cases[parser].append((name, info))
 
     if mode == "random_one_from_each_parser":
-        for parser, cases in parser_test_cases.items():
+        for _parser, cases in parser_test_cases.items():
             selected_case = random.choice(cases)
             test_cases[selected_case[0]] = {
                 "municipality": selected_case[0],
                 "values": selected_case[1]["values"],
             }
     elif mode == "first_from_each_parser":
-        for parser, cases in parser_test_cases.items():
+        for _parser, cases in parser_test_cases.items():
             selected_case = cases[0]
             test_cases[selected_case[0]] = {
                 "municipality": selected_case[0],
@@ -181,14 +186,14 @@ def select_test_cases(municipalities, mode="random_one_from_each_parser"):
             "values": selected_case[1]["values"],
         }
     elif mode == "first_one":
-        first_parser = list(parser_test_cases.keys())[0]
+        first_parser = next(iter(parser_test_cases.keys()))
         selected_case = parser_test_cases[first_parser][0]
         test_cases[selected_case[0]] = {
             "municipality": selected_case[0],
             "values": selected_case[1]["values"],
         }
     elif mode == "all":
-        for parser, cases in parser_test_cases.items():
+        for _parser, cases in parser_test_cases.items():
             for case in cases:
                 test_cases[case[0]] = {
                     "municipality": case[0],
@@ -669,7 +674,7 @@ def _match_icon_sequence(icons, legend):
 
 def _parse_calendar_pdf(
     pdf_bytes: bytes, fallback_year: int | None = None
-) -> tuple[List[Collection], int]:
+) -> tuple[list[Collection], int]:
     pages = []
     for page in extract_pages(BytesIO(pdf_bytes)):
         texts, images = _calendar_page_items(page)
@@ -689,7 +694,7 @@ def _parse_calendar_pdf(
             legend.setdefault(sequence, label)
     legend_sorted = sorted(legend.items(), key=lambda item: len(item[0]), reverse=True)
 
-    entries: List[Collection] = []
+    entries: list[Collection] = []
     unmatched = 0
     for page in pages:
         if not page["year"] or not page["headers"]:
@@ -753,7 +758,7 @@ def _next_emptying_dates(soup: BeautifulSoup) -> set[date]:
 
 
 def _calendar_is_usable(
-    entries: List[Collection],
+    entries: list[Collection],
     unmatched: int,
     expected_dates: set[date] | None,
 ) -> bool:
@@ -770,9 +775,9 @@ def _calendar_is_usable(
     return True
 
 
-def _unique_collections(entries: List[Collection]) -> List[Collection]:
+def _unique_collections(entries: list[Collection]) -> list[Collection]:
     seen: set[tuple[date, str]] = set()
-    unique: List[Collection] = []
+    unique: list[Collection] = []
     for entry in sorted(entries, key=lambda item: (item.date, item.type)):
         key = (entry.date, entry.type)
         if key in seen:
@@ -838,10 +843,10 @@ class Source:
         self._values = values
         self._parser_method = parser
 
-    def fetch(self) -> List[Collection]:
+    def fetch(self) -> list[Collection]:
         _LOGGER.debug("Fetching data from %s", self._api_url)
 
-        entries: List[Collection] = []
+        entries: list[Collection] = []
 
         post_data = {"values": self._values}
 
@@ -879,7 +884,7 @@ class Source:
             )
         return response.content
 
-    def _published_calendar(self, soup: BeautifulSoup) -> List[Collection] | None:
+    def _published_calendar(self, soup: BeautifulSoup) -> list[Collection] | None:
         """Return the full year calendar when its PDF can be read.
 
         The address page normally shows only the next emptying. Municipalities
@@ -892,7 +897,7 @@ class Source:
             return None
 
         expected_dates = _next_emptying_dates(soup)
-        entries: List[Collection] = []
+        entries: list[Collection] = []
         parsed_a_year = False
         for button in buttons:
             try:
@@ -937,14 +942,14 @@ class Source:
 
         return _unique_collections(entries)
 
-    def _parse_pdf(self, soup: BeautifulSoup) -> List[Collection]:
+    def _parse_pdf(self, soup: BeautifulSoup) -> list[Collection]:
         raise ValueError(
             "No waste collection dates found in the Affaldonline calendar. "
             "Please check the provided values."
         )
 
-    def _parse_default(self, soup: BeautifulSoup) -> List[Collection]:
-        entries: List[Collection] = []
+    def _parse_default(self, soup: BeautifulSoup) -> list[Collection]:
+        entries: list[Collection] = []
 
         next_pickup_info = soup.find_all(string=re.compile("Næste tømningsdag:"))
         if not next_pickup_info:
@@ -988,8 +993,8 @@ class Source:
 
         return entries
 
-    def _parse_silkeborg(self, soup: BeautifulSoup) -> List[Collection]:
-        entries: List[Collection] = []
+    def _parse_silkeborg(self, soup: BeautifulSoup) -> list[Collection]:
+        entries: list[Collection] = []
 
         table = soup.find("table")
         if not table:
@@ -1031,8 +1036,8 @@ class Source:
 
         return entries
 
-    def _parse_favrskov(self, soup: BeautifulSoup) -> List[Collection]:
-        entries: List[Collection] = []
+    def _parse_favrskov(self, soup: BeautifulSoup) -> list[Collection]:
+        entries: list[Collection] = []
 
         strong_tags = soup.find_all("strong")
         if not strong_tags:

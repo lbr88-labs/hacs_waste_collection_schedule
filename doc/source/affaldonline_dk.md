@@ -105,6 +105,7 @@ Go to the Affaldonline site for your municipality:
 - [Silkeborg](https://www.affaldonline.dk/kalender/silkeborg/)
 - [Sorø](https://www.affaldonline.dk/kalender/soroe/)
 - [Vejle](https://www.affaldonline.dk/kalender/vejle/)
+- [Viborg (Revas)](https://www.affaldonline.dk/kalender/viborg/)
 
 When the address page links a year calendar, the source reads that PDF and returns every collection date in it, including later days and weeks with pickups on more than one day. The following year is included when that calendar can be read as well. If the PDF cannot be read, the municipality's previous parser is used. Rebild and Vejle do not publish collection dates for the sample addresses in this file.
 

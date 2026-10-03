@@ -121,18 +121,29 @@ class A_region_ch:
         for download in downloads:
             # href ::= "/index.php?apid=12731252&amp;apparentid=5011362"
             href = download.get("href")
+            if "download.php" in href:
+                # skip PDF/attachment downloads (e.g. "Abfall-Info" leaflets).
+                # These are not calendar pages, can be several MB in size, and
+                # previously slipped through because the old "PDF" check below
+                # compared bs4 Tag objects (from find_all) against a string,
+                # which never matched. Repeatedly fetching a several-MB PDF on
+                # every poll can also trip the provider's own anti-bot rate
+                # limiting.
+                continue
             if (
                 download.find("div", class_="badgeIcon")
                 or download.find("img", class_="rowImg")
                 or download.find("img", class_="svgIconImg")
             ):
                 titles = download.find_all("div", class_="title")
-                if "PDF" in titles:
-                    continue
                 titles = [title.string for title in titles]
                 if not titles:
                     titles = [download.get_text(strip=True)]
+                if any(title and "PDF" in title for title in titles):
+                    continue
                 for title in titles:
+                    if title is None:
+                        continue
                     # title ::= "Altmetall"
                     waste_types[title] = href
 
@@ -162,7 +173,7 @@ class A_region_ch:
         if len(districts) > 0:
             if len(districts) == 1:
                 # only one district found -> use it
-                return self.get_ICS_sources(list(districts.values())[0], tour)
+                return self.get_ICS_sources(next(iter(districts.values())), tour)
             if self._district is None:
                 raise SourceArgumentRequiredWithSuggestions(
                     "district",
@@ -176,7 +187,7 @@ class A_region_ch:
                 )
             return self.get_ICS_sources(districts[self._district], tour)
 
-        dates = list()
+        dates = []
 
         downloads = soup.find_all("a", href=True)
         for download in downloads:

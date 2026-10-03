@@ -72,6 +72,15 @@ ICON_MAP = {
     "Blue Recycling Cart": Icons.RECYCLING,
     "Green Organic Waste Cart": Icons.ORGANIC,
     "No Collection Day": Icons.NO_COLLECTION,
+    "Blue Bin Paper Recycling": Icons.PAPER,
+    "Yellow Bin Container Recycling": Icons.RECYCLING,
+    "Christmas Tree": Icons.CHRISTMAS_TREE,
+    "Household Hazardous Waste Drop-Off": Icons.HAZARDOUS,
+    "Large Items": Icons.BULKY,
+    "Leaf": Icons.GARDEN,
+    "Compost Yard Open Saturday": Icons.EVENT,
+    "Compost Yard Open Wednesday": Icons.EVENT,
+    "3 Bags of Waste": Icons.GENERAL_WASTE,
 }
 
 EXTRA_INFO = [
@@ -225,6 +234,15 @@ EXTRA_INFO = [
         },
     },
     {
+        "title": "West Kelowna (BC)",
+        "url": "https://www.rdco.com/",
+        "country": "ca",
+        "default_params": {
+            "project_id": "502",
+            "district_id": "WestKelowna",
+        },
+    },
+    {
         "title": "Plainville (CT)",
         "url": "https://www.plainvillect.com/",
         "country": "us",
@@ -285,6 +303,12 @@ EXTRA_INFO = [
         "default_params": {"project_id": "3179", "district_id": "CALED"},
     },
     {
+        "title": "Carleton Place (ON)",
+        "url": "https://carletonplace.ca/",
+        "country": "ca",
+        "default_params": {"project_id": "3149", "district_id": "CARLETON"},
+    },
+    {
         "title": "Burlington (ON)",
         "url": "https://www.burlington.ca/",
         "country": "ca",
@@ -313,6 +337,24 @@ EXTRA_INFO = [
         "url": "https://guelph.ca/",
         "country": "ca",
         "default_params": {"project_id": "3194", "district_id": "GUEL"},
+    },
+    {
+        "title": "New Rochelle (NY)",
+        "url": "https://www.newrochelleny.gov/791/Collection-Dates",
+        "country": "us",
+        "default_params": {"project_id": "3015", "district_id": "NEWRO"},
+    },
+    {
+        "title": "Peoria (IL)",
+        "url": "https://www.peoriagov.org/533/Yes-Peoria-Picks-Up",
+        "country": "us",
+        "default_params": {"project_id": "PEORIA", "district_id": "PEORIA"},
+    },
+    {
+        "title": "Bloomington (IL)",
+        "url": "https://www.bloomingtonil.gov/",
+        "country": "us",
+        "default_params": {"project_id": "621", "district_id": "BLO"},
     },
 ]
 
@@ -419,6 +461,33 @@ TEST_CASES = {
         "project_id": 583,
         "zone_id": "zone-z9942",
     },
+    "New Rochelle, NY, USA (with district_id, project_id & zone_id)": {
+        "district_id": "NEWRO",
+        "project_id": 3015,
+        "zone_id": "zone-z19582-z19705",
+    },
+    "West Kelowna, BC, Canada (with district_id & project_id)": {
+        "street": "2760 Cameron Rd",
+        "city": "West Kelowna",
+        "state": "British Columbia",
+        "district_id": "WestKelowna",
+        "project_id": "502",
+    },
+    "Peoria, IL, USA": {
+        "street": "10303 N Churchill Dr",
+        "city": "Peoria",
+        "state": "Illinois",
+    },
+    "Bloomington, IL, USA (with district_id, project_id & zone_id)": {
+        "district_id": "BLO",
+        "project_id": "621",
+        "zone_id": "zone-z11025",
+    },
+    "Carleton Place, ON, Canada": {
+        "street": "175 Bridge St",
+        "city": "Carleton Place",
+        "state": "Ontario",
+    },
 }
 
 
@@ -461,7 +530,7 @@ class Source:
                 )
             return
 
-        elif len(city_data) > 1:
+        if len(city_data) > 1:
             for city in city_data:
                 if city["city_nm"].upper() == self.city.upper():
                     self.project_id = city["project_id"]
@@ -475,7 +544,6 @@ class Source:
 
     def _lookup_zones_with_geo(self):
         geo_address_urls = [
-            f"https://api-city.recyclecoach.com/geo/address?address={self.street}&project_id={self.project_id}&district_id={self.district_id}",
             f"https://us-web.apigw.recyclecoach.com/zone-setup/address/geo?address={self.street}&project_id={self.project_id}&district_id={self.district_id}",
             f"https://ca-web.apigw.recyclecoach.com/zone-setup/address/geo?address={self.street}&project_id={self.project_id}&district_id={self.district_id}",
         ]
@@ -514,7 +582,6 @@ class Source:
             )
 
         zone_finder_urls = [
-            f"https://api-city.recyclecoach.com/get_zones?project_id={self.project_id}&district_id={self.district_id}&lat={lat}&lng={lng}",
             f"https://us-web.apigw.recyclecoach.com/zone-setup/address/geo/zone?project_id={self.project_id}&district_id={self.district_id}&lat={lat}&lng={lng}",
             f"https://ca-web.apigw.recyclecoach.com/zone-setup/address/geo/zone?project_id={self.project_id}&district_id={self.district_id}&lat={lat}&lng={lng}",
         ]
@@ -539,7 +606,6 @@ class Source:
 
     def _lookup_zones(self):
         zone_lookup_urls = [
-            f"https://api-city.recyclecoach.com/zone-setup/address?sku={self.project_id}&district={self.district_id}&prompt=undefined&term={self.street}",
             f"https://us-web.apigw.recyclecoach.com/zone-setup/address/single?sku={self.project_id}&district={self.district_id}&prompt=undefined&term={self.street}",
             f"https://ca-web.apigw.recyclecoach.com/zone-setup/address/single?sku={self.project_id}&district={self.district_id}&prompt=undefined&term={self.street}",
         ]
@@ -592,13 +658,11 @@ class Source:
             self._lookup_zones()
 
         collection_urls = [
-            f"https://api-city.recyclecoach.com/collections?project_id={self.project_id}&district_id={self.district_id}&zone_id={self.zone_id}&lang_cd=en_US",
             f"https://us-web.apigw.recyclecoach.com/zone-setup/zone/collections?project_id={self.project_id}&district_id={self.district_id}&zone_id={self.zone_id}&lang_cd=en_US",
             f"https://ca-web.apigw.recyclecoach.com/zone-setup/zone/collections?project_id={self.project_id}&district_id={self.district_id}&zone_id={self.zone_id}&lang_cd=en_US",
         ]
 
         schedule_urls = [  # Some regions use different one of these should work
-            f"https://api-city.recyclecoach.com/app_data_zone_schedules?project_id={self.project_id}&district_id={self.district_id}&zone_id={self.zone_id}",
             f"https://us-web.apigw.recyclecoach.com/zone-setup/zone/schedules?project_id={self.project_id}&district_id={self.district_id}&zone_id={self.zone_id}",
             f"https://ca-web.apigw.recyclecoach.com/zone-setup/zone/schedules?project_id={self.project_id}&district_id={self.district_id}&zone_id={self.zone_id}",
         ]

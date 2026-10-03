@@ -48,6 +48,7 @@ This source has been successfully tested with the following service providers:
 - [gem2go (Abfallverband)](/doc/ics/gem2go_dev.md) / gem2go.dev
 - [Gemeinde Aspang-Markt](/doc/ics/aspangmarkt_at.md) / aspangmarkt.at
 - [Gemeinde Passail](/doc/ics/passail_at.md) / passail.at
+- [Geminfo.app](/doc/ics/geminfo_app.md) / geminfo.app
 - [Gerasdorf bei Wien](/doc/ics/muellapp_com.md) / muellapp.com
 - [Gitschtal](/doc/ics/muellapp_com.md) / muellapp.com
 - [Globasnitz](/doc/ics/muellapp_com.md) / muellapp.com
@@ -154,6 +155,7 @@ This source has been successfully tested with the following service providers:
 - [Straßwalchen](/doc/ics/muellapp_com.md) / muellapp.com
 - [Söll](/doc/ics/muellapp_com.md) / muellapp.com
 - [Techelsberg am Wörther See](/doc/ics/muellapp_com.md) / muellapp.com
+- [Thannhausen](/doc/ics/geminfo_app.md) / thannhausen.at
 - [Traun](/doc/ics/gem2go_dev.md) / uwpio.gem2go.dev
 - [Trebesing](/doc/ics/muellapp_com.md) / muellapp.com
 - [Treffen am Ossiacher See](/doc/ics/muellapp_com.md) / muellapp.com
@@ -190,6 +192,7 @@ This source has been successfully tested with the following service providers:
 - [City of Edmonton, AB](/doc/ics/recollect.md) / edmonton.ca
 - [City of Greater Sudbury, ON](/doc/ics/recollect.md) / greatersudbury.ca
 - [City of Guelph, ON](/doc/ics/recollect.md) / guelph.ca
+- [City of Kamloops, BC](/doc/ics/recollect.md) / kamloops.ca
 - [City of Kingston, ON](/doc/ics/recollect.md) / cityofkingston.ca
 - [City of Lethbridge](/doc/ics/recollect.md) / lethbridge.ca
 - [City of Nanaimo](/doc/ics/recollect.md) / nanaimo.ca
@@ -199,6 +202,7 @@ This source has been successfully tested with the following service providers:
 - [City of Windsor](/doc/ics/citywindsor_ca.md) / citywindsor.ca
 - [Colchester, NS](/doc/ics/recollect.md) / colchester.ca
 - [Community Recycling (Lunenburg, NS)](/doc/ics/recollect.md) / communityrecycling.ca
+- [Coteau-du-Lac, Québec](/doc/ics/coteau-du-lac_com.md) / portail.coteau-du-lac.com
 - [County of Simcoe, ON](/doc/ics/recollect.md) / simcoe.ca
 - [CURBit St. John's](/doc/ics/recollect.md) / curbitstjohns.ca
 - [District of Saanich, BC](/doc/ics/recollect.md) / saanich.ca
@@ -321,6 +325,10 @@ This source has been successfully tested with the following service providers:
 - [Friedrichsdorf](/doc/ics/mein_abfallkalender_online.md) / friedrichsdorf.de
 - [Gelber Sack Stuttgart](/doc/ics/gelbersack_stuttgart_de.md) / gelbersack-stuttgart.de
 - [Gelsendienste Gelsenkirchen](/doc/ics/gelsendienste_de.md) / gelsendienste.de
+- [Gemeinde Hille](/doc/ics/hille_de.md) / hille.de
+- [Gemeinde Hüllhorst](/doc/ics/huellhorst_de.md) / huellhorst.de
+- [Gemeinde Neuberg](/doc/ics/neuberg_de.md) / neuberg.eu
+- [Gemeinde Rödinghausen](/doc/ics/abfall_export_vcal.md) / roedinghausen.de
 - [Ginsheim-Gustavsburg](/doc/ics/gigu_de.md) / gigu.de
 - [Gipsprojekt](/doc/ics/gipsprojekt_de.md) / gipsprojekt.de
 - [Gräfelfing](/doc/ics/mein_abfallkalender_online.md) / graefelfing.de
@@ -330,8 +338,10 @@ This source has been successfully tested with the following service providers:
 - [Heusenstamm](/doc/ics/mein_abfallkalender_online.md) / heusenstamm.de
 - [Hochheim](/doc/ics/mein_abfallkalender_online.md) / hochheim.de
 - [Hofheim](/doc/ics/mein_abfallkalender_online.md) / hofheim.de
+- [Homburg](/doc/ics/mein_abfallkalender_online.md) / homburg.de
 - [Karben](/doc/ics/mein_abfallkalender_online.md) / karben.de
 - [KECL Kommunalentsorgung Chemnitzer Land](/doc/ics/kecl_de.md) / kecl.de
+- [Kelkheim (Taunus)](/doc/ics/kelkheim_de.md) / kelkheim.de/mod_abfallkalender
 - [Kirchhain](/doc/ics/abfall_export_vcal.md) / kirchhain.de
 - [Knittel Entsorgung](/doc/ics/knittel_entsorgung_com.md) / knittel-entsorgung.com
 - [Kreis Steinburg](/doc/ics/steinburg_de.md) / steinburg.de
@@ -380,20 +390,24 @@ This source has been successfully tested with the following service providers:
 - [Siegen](/doc/ics/siegen_stadt_de.md) / siegen-stadt.de
 - [St Ingbert](/doc/ics/mein_abfallkalender_online.md) / st-ingbert.de
 - [St. Ingbert](/doc/ics/mein_abfallkalender_online.md) / st-ingbert.de
+- [Stadt Bünde](/doc/ics/buende_de.md) / buende.de
 - [Stadt Delmenhorst](/doc/ics/stadt_delmenhorst_de.md) / delmenhorst.de
 - [Stadt Detmold](/doc/ics/detmold_de.md) / detmold.de
 - [Stadt Enger](/doc/ics/enger_de.md) / enger.de
 - [Stadt Koblenz](/doc/ics/koblenz_de.md) / koblenz.de
 - [Stadt Löhne](/doc/ics/abfall_export_vcal.md) / loehne.de
+- [Stadt Löhne](/doc/ics/loehne_de.md) / loehne.de
 - [Stadt Mainhausen](/doc/ics/stadt_mainhausen_de.md) / mainhausen.de
 - [Stadt Osnabrück](/doc/ics/osnabrueck_de.md) / osnabrueck.de
 - [Stadt Saarlouis](/doc/ics/mein_abfallkalender_online.md) / saarlouis.de
 - [Stadt Spenge](/doc/ics/spenge_de.md) / spenge.de
+- [Stadt Tengen](/doc/ics/tengen_de.md) / tengen.de
 - [Stadt Vlotho](/doc/ics/abfall_export_vcal.md) / vlotho.de
 - [Stadt Wetzlar](/doc/ics/wetzlar_de.md) / wetzlar.de
 - [Stadtbetrieb Frechen](/doc/ics/stadtbetrieb_frechen_de.md) / stadtbetrieb-frechen.de
 - [Stadtentsorgung Rostock](/doc/ics/stadtentsorgung_rostock_de.md) / stadtentsorgung-rostock.de
 - [Stadtreinigung Leipzig](/doc/ics/stadtreinigung_leipzig_de.md) / stadtreinigung-leipzig.de
+- [Stadtwerke Aschaffenburg](/doc/ics/gipsprojekt_de.md) / stwab.de/Abfall-Stadtreinigung/Muellabfuhr/Abfuhrtermine-und-Bezirk
 - [Stadtwerke Bergheim](/doc/ics/swbm_de.md) / swbm.de
 - [Stadtwerke Hürth](/doc/ics/stadtwerke_huerth_de.md) / stadtwerke-huerth.de
 - [Stadtwerke Speyer](/doc/ics/gipsprojekt_de.md) / stadtwerke-speyer.de/muellkalender
@@ -486,6 +500,7 @@ This source has been successfully tested with the following service providers:
 ### United States of America
 
 - [Atlantic Waste Services, GA](/doc/ics/recollect.md) / atlanticwaste.com
+- [City of Apopka, FL](/doc/ics/recollect.md) / apopka.gov/319/Solid-Waste
 - [City of Austin, TX](/doc/ics/recollect.md) / austintexas.gov
 - [City of Bloomington](/doc/ics/recollect.md) / bloomington.in.gov
 - [City of Cambridge](/doc/ics/recollect.md) / cambridgema.gov
@@ -497,6 +512,9 @@ This source has been successfully tested with the following service providers:
 - [City of Houston, TX](/doc/ics/recollect.md) / houstontx.gov
 - [City of Lowell, MA](/doc/ics/recollect.md) / lowellma.gov
 - [City of McKinney, TX](/doc/ics/recollect.md) / mckinneytexas.org
+- [City of Orlando, FL](/doc/ics/recollect.md) / orlando.gov/Trash-Recycling
+- [City of Raleigh, NC](/doc/ics/recollect.md) / raleighnc.gov/landfill-and-reuse/services/raleigh-reuse-web-tool-and-mobile-app
+- [City of Roseville, CA](/doc/ics/recollect.md) / roseville.ca.gov/environmental_utilities/at_your_service/trash_recycling/index.php
 - [Davenport, Iowa, USA](/doc/ics/recollect.md) / davenportiowa.com
 - [Hardin Sanitation, Idaho, USA](/doc/ics/recollect.md) / hardinsanitation.com
 - [ReCollect](/doc/ics/recollect.md) / recollect.net
