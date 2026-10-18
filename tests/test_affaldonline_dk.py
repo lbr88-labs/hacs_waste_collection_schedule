@@ -230,6 +230,52 @@ def test_holbaek_calendar_returns_dates_beyond_next_emptying(monkeypatch):
     assert len(by_date) > 20
 
 
+@pytest.mark.parametrize(
+    ("next_pickup_day", "accept_2026"),
+    [(6, True), (7, False)],
+)
+def test_calendar_checks_next_pickup_only_against_matching_pdf_year(
+    monkeypatch, caplog, next_pickup_day, accept_2026
+):
+    pdfs = {year: open(_pdf_path("nyborg", year), "rb").read() for year in (2026, 2027)}
+    show_info = (
+        f"Næste tømningsdag: tirsdag den {next_pickup_day}. januar 2026 "
+        "(Restaffald)"
+        "<button onClick=\"window.open('showToemCal.php?year=2026"
+        "&forbid=1&altid=0&type=1')\">Kalender 2026</button>"
+        "<button onClick=\"window.open('showToemCal.php?year=2027"
+        "&forbid=1&altid=0&type=1')\">Kalender 2027</button>"
+    )
+    downloaded = []
+
+    def mock_post(url, data=None, **kwargs):
+        assert url == "https://www.affaldonline.dk/kalender/nyborg/showInfo.php"
+        return MockResponse(text=show_info)
+
+    def mock_get(url, params=None, timeout=None, **kwargs):
+        assert url == "https://www.affaldonline.dk/kalender/nyborg/showToemCal.php"
+        year = int(params["year"])
+        downloaded.append(year)
+        return MockResponse(content=pdfs.get(year, b"not a pdf"))
+
+    monkeypatch.setattr(affaldonline_dk.requests, "post", mock_post)
+    monkeypatch.setattr(affaldonline_dk.requests, "get", mock_get)
+
+    source = affaldonline_dk.Source(municipality="nyborg", values="test-address")
+    entries = source.fetch()
+    returned_dates = {entry.date for entry in entries}
+
+    assert downloaded == [2026, 2027, 2028]
+    assert {day.year for day in returned_dates} == (
+        {2026, 2027} if accept_2026 else {2027}
+    )
+    assert date(2027, 1, 12) in returned_dates
+    assert (date(2026, 1, 6) in returned_dates) == accept_2026
+    assert all(affaldonline_dk._is_legend_label(entry.type) for entry in entries)
+    assert ("Ignoring Affaldonline calendar 2026" in caplog.text) != accept_2026
+    assert "Ignoring Affaldonline calendar 2027" not in caplog.text
+
+
 def test_unreadable_calendar_keeps_next_emptying(monkeypatch):
     def mock_get(url, params=None, timeout=None, **kwargs):
         assert "showToemCal.php" in url

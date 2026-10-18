@@ -912,7 +912,10 @@ class Source:
                     error,
                 )
                 continue
-            if not _calendar_is_usable(parsed, unmatched, expected_dates):
+            year_expected_dates = {
+                day for day in expected_dates if day.year == int(button["year"])
+            }
+            if not _calendar_is_usable(parsed, unmatched, year_expected_dates):
                 _LOGGER.warning(
                     "Ignoring Affaldonline calendar %s for %s",
                     button["year"],
@@ -937,7 +940,10 @@ class Source:
                     "No Affaldonline calendar published for %s", following["year"]
                 )
             else:
-                if _calendar_is_usable(parsed, unmatched, None):
+                year_expected_dates = {
+                    day for day in expected_dates if day.year == int(following["year"])
+                }
+                if _calendar_is_usable(parsed, unmatched, year_expected_dates):
                     entries.extend(parsed)
 
         return _unique_collections(entries)
